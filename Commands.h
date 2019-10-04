@@ -6,7 +6,7 @@
 #define MAXDATASIZE 100 /* max number of bytes we can get at once */
 #define QUERY_LENGTH 50
 
-typedef enum {PASS, OFF} flags;
+typedef enum {PASS, OFF, SHUTDOWN} flags;
 
 
 typedef struct ClientID_t {
@@ -27,6 +27,7 @@ typedef struct ChannelClient_t {
 
 typedef struct Messages_t {
    char Msg[1024];
+   int truth;
    struct Messages_t  *next;
    struct Messages_t  *tail;
 }Messages;

@@ -20,7 +20,6 @@
 #define CNULL 256
 
 
-ClientID *MainID;
 Channel *Channels, *ChannelTail, *ChannelHead;
 ChannelClient *CCNULL;
 ChannelList *Clist;
@@ -60,16 +59,11 @@ void handler()
 
 	for(int i = 0; i < 5; i++){
 		if(totalusers[i].PID==chpid){
-			printf("Child pid %d ended on linked list %d\n", chpid, totalusers[i].PID); 
 			totalusers[i].PID = 0;
 			totalusers[i].ID = 0;
 			break;
 		}
 	}
-  /* WARNING : to show the call of the handler, do not do that
-     in a 'real' code, we are in a handler of a signal */
-  
-
 }
 
 int main(int argc, char *argv[])
@@ -77,8 +71,8 @@ int main(int argc, char *argv[])
 	int new_fd;  /* listen on sock_fd, new connection on new_fd */
 	struct sockaddr_in my_addr;    /* my address information */
 	socklen_t sin_size;
-	
-  	int shmid = shmget(IPC_PRIVATE, sizeof(ChannelList), IPC_CREAT | 0666);
+
+  	int shmid = shmget(IPC_PRIVATE, sizeof(ChannelList), IPC_CREAT | 0666);// setup shared memory
 	Clist = shmat(shmid, 0, 0);
 
 	for(int i = 0; i < 255; i++){// Initialize all structs
@@ -86,9 +80,10 @@ int main(int argc, char *argv[])
 		for(int x = 0; x < MAXUSER; x++){
 			Clist->next[i].ClientChan[x].Client.ID = 0;
 		}
+		Clist->next[i].Msg[0].truth = 0;
 	}
 
-	for(int i = 0; i < 5; i++){
+	for(int i = 0; i < 5; i++){// Default value of ID
 		totalusers[i].ID=0;
 	}
 	
@@ -120,8 +115,6 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 	ConnectAndAssign(sin_size,new_fd,sockfd);
-	
-	
 	return EXIT_SUCCESS;
 }
 
@@ -129,6 +122,8 @@ void ConnectAndAssign(socklen_t sin_size, int new_fd, int sockfd)
 {
 	printf("server starts listnening ...\n");
 	while(1) {  
+		fflush(stdin);
+		fflush(stdout);	
 		struct sockaddr_in their_addr; /* connector's address information */
 		sin_size = sizeof(struct sockaddr_in);
 		if ((new_fd = accept(sockfd, (struct sockaddr *)&their_addr, &sin_size)) == -1) {
@@ -136,31 +131,42 @@ void ConnectAndAssign(socklen_t sin_size, int new_fd, int sockfd)
 			continue;
 		}
 		else{
-			ClientID fakeboi; pid_t natural;
-				printf("server: successful connection from %s \n", inet_ntoa(their_addr.sin_addr));
-				printf("socket: %d\n", new_fd);
+			ClientID fail; pid_t natural; int truth = 0;
+					for(int i = 0; i < 5; i++){
+						if(totalusers[i].ID==0){
+							truth = 1;
+						break;
+						}
+					}
 				
 				//Client Function..
-				natural = fork();
-				if(natural == 0){
-					RunClient(new_fd);
-				}
-				else{
-					MainID = &fakeboi;
-					signal(SIGINT, close_server);
-					signal(SIGHUP, close_server);
-					signal(SIGCHLD, handler);
+				if(truth == 1){
+					natural = fork();
+					if(natural == 0){// child process runs the backend
+						RunClient(new_fd);
+					}
+					else{//Main process adds the user to the queue.
+						signal(SIGCHLD, handler);
+						signal(SIGINT, close_server);
 
-					for(int i = 0; i < 5; i++){
-					if(totalusers[i].ID==0){
-						totalusers[i].ID=i+1;
-						totalusers[i].PID = natural;
-						strcpy(totalusers[i].Message, "Welcome! Your client ID is");
-						if (send(new_fd, &totalusers[i], sizeof(ClientID), 0) == -1)
-        				perror("send");
-						break;
+						for(int i = 0; i < 5; i++){
+						if(totalusers[i].ID==0){
+							totalusers[i].ID=i+1;
+							totalusers[i].PID = natural;
+							strcpy(totalusers[i].Message, "Welcome! Your client ID is");
+							printf("Client: %d has connected\n",i+1);
+							if (send(new_fd, &totalusers[i], sizeof(ClientID), 0) == -1)
+								perror("send");
+							break;
+							}
+						}
 					}
-					}
+				}
+				else{// If no free spot is avilable then send bad news.
+					fail.ID = 0;
+					fail.mode = SHUTDOWN;
+					if(send(new_fd, &fail, sizeof(ClientID), 0) == -1)
+						perror("send");
 				}
 		}
 	}
@@ -248,7 +254,7 @@ void RunClient(int new_fd){
 					break;
 				}
 				else if(strstr(temp.Message,"BYE")!=NULL){
-					MainID = NULL;UNSUB_ALL(temp);
+					UNSUB_ALL(temp);
 					destroy = 1;
 					break;
 				}
@@ -260,7 +266,7 @@ void RunClient(int new_fd){
 			}  		
 
 			else{
-				MainID = NULL;UNSUB_ALL(temp);
+				UNSUB_ALL(temp);
 				destroy = 1;
 				close(new_fd);
 				break;
@@ -294,24 +300,22 @@ void UnsubChannel(ClientID ID, int socket){
 			InvalidChannel(ptr,str,ID,channel,socket);
 			return;
 		}
-			if(Channels == NULL){
+			if(Clist->next[0].ID == 256){
 			ConfirmedChannel(ptr,str,ID,channel,socket,"Not subscribed to channel: ");
 			return;
 			}
 				Channel *current = Channels;
-				while(current != NULL)
-				{
-					if(current->ID == channel && current->ClientChan != NULL){
-						ChannelClient *Ccurrent = current->ClientChan;
-							for(int i = 0; i < MAXUSER; i++){
-								if(Ccurrent[i].Client.ID == ID.ID){
-									Ccurrent[i].Client.ID = 0;
-									ConfirmedChannel(ptr,str,ID,channel,socket,"Unsubscribed from channel: ");
-									return;
+				for(int i = 0; i < Clist->tail; i++)
+				{	
+					if(Clist->next[i].ID == channel){
+								for(int x = 0; x < MAXUSER; x++){
+								if(Clist->next[i].ClientChan[x].Client.ID == ID.ID){
+								Clist->next[i].ClientChan[x].Client.ID = 0;
+								ConfirmedChannel(ptr,str,ID,channel,socket,"Unsubscribed from channel: ");
+								return;
 								}
-							}		
+							}
 					}
-					current = current->next;
 				}
 				ConfirmedChannel(ptr,str,ID,channel,socket,"Not subscribed to channel: ");
 		}
@@ -325,16 +329,16 @@ void SubChannel(ClientID ID, int socket)
 	char str[80];
 	char *ptr;
 
-	if(CheckPara(ID,"SUB",socket) == -1)
+	if(CheckPara(ID,"SUB",socket) == -1)// Check if there is no parameter
 		return;
-	if(CheckNumber(socket,ID,"SUB") == "\0")
+	if(CheckNumber(socket,ID,"SUB") == "\0")// Check if valid second paramter
 		return;
 	ptr = malloc(sizeof(CheckNumber(socket,ID,"SUB")));
 	strcpy(ptr,CheckNumber(socket,ID,"SUB"));
 	int channel = atoi(ptr);
 
 		if(checkString(ptr)){
-				if(channel < 0 || channel > 255){
+				if(channel < 0 || channel > 255){// If below or over 255 display error
 					InvalidChannel(ptr,str,ID,channel,socket);
 					return;
 				}
@@ -354,14 +358,12 @@ void SubChannel(ClientID ID, int socket)
 						Clist->next[0].TotalMsg = 0;
 						Clist->next[0].next = NULL;
 						Clist->tail = 1;
-						printf("the tail is: %d", Clist->tail);
 						ConfirmedChannel(ptr,str,ID,channel,socket,"Subscribed to channel: ");
 						return;
 					}
 
 						for(int i = 0; i < 255; i++)
-						{		
-							printf("keep going is: %d",i);				
+						{					
 							if(Clist->next[i].ID == channel){
 								for(int x = 0; x < MAXUSER; x++){
 								if(Clist->next[i].ClientChan[x].Client.ID == 0){
@@ -384,13 +386,11 @@ void SubChannel(ClientID ID, int socket)
 							
 							
 							else if (Clist->next[i].ID == 256)
-							{
-								printf("BAM: %d",i);	
+							{	
 								Clist->next[i].ID = channel;
 								Clist->next[i].TotalMsg = 0;
 								Clist->next[i].next = NULL;
 								Clist->tail +=1;
-								printf("the tail is: %d", Clist->tail);
 
 							for(int z = 0; z < MAXUSER; z++){Clist->next[i].ClientChan[z].Client.ID = 0;}// Initialize all to 0.
 								for(int x = 0; x < MAXUSER; x++){
@@ -402,8 +402,6 @@ void SubChannel(ClientID ID, int socket)
 								break;
 								}
 							}
-								
-								
 								ConfirmedChannel(ptr,str,ID,channel,socket,"Subscribed to channel: ");
 								return;
 							}
@@ -411,7 +409,7 @@ void SubChannel(ClientID ID, int socket)
 		}	
 					
 	else{
-		InvalidChannel(ptr,str,ID,channel,socket);
+		InvalidChannel(ptr,str,ID,channel,socket);// If not a valid parameter display error.
 		}		
 }	
 
@@ -469,39 +467,31 @@ void NEXT(ClientID ID, int socket)
 			return;
 		}
 			
-		if(Channels == NULL){
+		if(Clist->next[0].ID == 256){
 		ConfirmedChannel(ptr,str,ID,channel,socket,"Not subscribed to channel: ");
 		return;
 		}
 
 		Channel *current = Channels;
-		while(current != NULL){
-			if(current->ClientChan != NULL && current->ID == channel){
-				ChannelClient *Ccurrent = current->ClientChan;
-				while(Ccurrent != NULL && Ccurrent->Client.ID != ID.ID){
-					Ccurrent = Ccurrent->next;
-				}
-
-				if(Ccurrent->Client.ID == ID.ID){
-				Messages *Message = current->Msg;
-				for(int i = 0; i < current->ClientChan->Read; i++){
-				Message = Message->next;
-				}
-				
-				if(Message != NULL){
+		for(int i = 0; i < 255; i++){	
+			for(int x = 0; x < MAXUSER; x++){
+			if(Clist->next[i].ClientChan[x].Client.ID == ID.ID && Clist->next[i].ID == channel){
+				int read = Clist->next[i].ClientChan[x].Read;
+				if(Clist->next[i].Msg[read].truth == 1){
 					ID.mode = OFF;
-					RelayBackMsg(ID, Message->Msg, socket);
+					RelayBackMsg(ID, Clist->next[i].Msg[read].Msg, socket);
 					current->ClientChan->Read++;
 					current->ClientChan->NonRead--;
 					return;
 				}
+
 				ID.mode = PASS;
 				RelayBackMsg(ID,"\0",socket);
 				return;
-				}
 			}
-			current = current->next;
+			}
 		}
+
 		ConfirmedChannel(ptr,str,ID,channel,socket,"Not subscribed to channel: ");
 		fflush(stdin);
 		fflush(stdout);	

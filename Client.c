@@ -19,7 +19,7 @@ int livefeed = 0;
 int livefeed2 = 0;
 int manualdestroy = 0;
 int mainbool= 1;
-char buf[1028];
+char buf[1024];
 ClientID ID;
 
 void ConnectToServer(char* argv[]);
@@ -77,13 +77,22 @@ void ConnectToServer(char* argv[])
 void MainRun(){
 		while(mainbool == 1){
 				char to_send[sizeof(ClientID)];
+				int chunck;
 				ID.mode = OFF;
 				printf("Command:");
-				fgets(buf, 1028, stdin);
+				fgets(buf, 1024, stdin);
 
-				if (sscanf(buf, "%[^\n]%*c", to_send) == 1 )
-					strcpy(ID.Message,to_send);
-					ssendClientID(sockfd, ID);
+				if (chunck = sscanf(buf, "%[^\n]%*c", to_send) >= 0 ){// check if empty string
+					if(chunck == 1){// send package
+						strcpy(ID.Message,to_send);
+						ssendClientID(sockfd, ID);
+					}
+					else{
+						strcpy(ID.Message,"");//replace ID.message with nothing.
+						ssendClientID(sockfd, ID);
+					}
+				}
+					
 
 				if(strcmp("BYE",ID.Message) == 0){
 					printf("Ending session..\n");
@@ -274,14 +283,16 @@ void AddedToServerCheck()
 		exit(1);
 	}
 	if(ID.ID == 0){
-		printf("ID: %d",ID.ID);
-		printf("Queue full.. Please Try Again\n");
+		ID.mode=SHUTDOWN;
+		printf("Server Full....\n");
+		RelayBackMsg(ID,"",sockfd);
 		shutdown(sockfd,SHUT_RDWR);
 		close(sockfd);
 		exit(1);
 	}
 	else{
 		printf("%s %d\n",ID.Message, ID.ID);
+		strcpy(ID.Message,"");
 	}
 	
 }

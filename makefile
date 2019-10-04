@@ -1,4 +1,5 @@
 CC = gcc
+LOADLIBES =-pthread -lrt
 
 all: Client Server
 	

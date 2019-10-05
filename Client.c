@@ -142,11 +142,11 @@ void MainRun(){
 
 					else if(strcmp("LivefeedALL",ID.Message) == 0){
 						signal(SIGINT, close_livefeedALL);
+						manualdestroy = 0;
 						while(livefeed2 == 0)
 						{
 							numbytes=recv(sockfd, &ID, sizeof(ClientID), 0);
 							if(numbytes > 0){
-							
 								if(strcmp(ID.Message,"STOP")==0){
 									if(manualdestroy == 1){
 										numbytes=recv(sockfd, &ID, sizeof(ClientID), 0);
@@ -157,19 +157,11 @@ void MainRun(){
 										}
 									}
 									else{
-										if(manualdestroy == 1){
-										numbytes=recv(sockfd, &ID, sizeof(ClientID), 0);
-										if(numbytes > 0){
-											if(strcmp(ID.Message,"BEANS")==0){// CONFIRM THAT SERVER HAS DISBANDED
-											break;
-											}
-										}
-										}
 										RelayBackMsg(ID,"STOP",sockfd);
 									}
 								}
 
-								else if(strcmp(ID.Message,"NONE")==0){
+								else if(strstr(ID.Message,"NONE")==NULL){
 									printf("%s\n",ID.Message);
 									strcpy(ID.Message,"READY");
 									ssendClientID(sockfd, ID);
@@ -239,8 +231,9 @@ void MainRun(){
 
 					else if(ID.mode == OFF){
 						printf("From server: %s",ID.Message);
+						
 					}	
-
+						
 					printf("\n\n");
 					fflush(stdin);
 					memset(buf,0,sizeof(buf));

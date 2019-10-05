@@ -181,7 +181,7 @@ void DisplayChannels(ClientID temp, int socket){// Sort and List out the current
 					char num[128];
 					char nice[256];
 					strcpy(nice, "Subscribed to ");
-		    		sprintf(num,"%d  \tTotal Messages:%d \nRead Messages:%d \tUnread Messages:%d \n\n", Clist->next[i].ID, Clist->next[i].TotalMsg, Clist->next[i].ClientChan[x].Read, Clist->next[x].ClientChan[x].NonRead);
+		    		sprintf(num,"%d  \tTotal Messages:%d \nRead Messages:%d \tUnread Messages:%d \n\n", Clist->next[i].ID, Clist->next[i].TotalMsg, Clist->next[i].ClientChan[x].Read, Clist->next[i].ClientChan[x].NonRead);
 					strcat(nice,num);
 					RelayBackMsg(temp,nice,socket);
 					}
@@ -368,7 +368,7 @@ void SubChannel(ClientID ID, int socket)
 								if(Clist->next[i].ClientChan[x].Client.ID == 0){
 								Clist->next[i].ClientChan[x].Client = ID;
 								Clist->next[i].ClientChan[x].Read = 0;
-								Clist->next[i].ClientChan[x].NonRead = 0;
+								Clist->next[i].ClientChan[x].NonRead = Clist->next[i].TotalMsg;
 								Clist->next[i].ClientChan[x].next = NULL;
 								ConfirmedChannel(ptr,str,ID,channel,socket,"Subscribed to channel: ");
 								return;
@@ -499,47 +499,54 @@ void LIVEFEED(ClientID ID, int socket){
 	if(strcmp(ID.Message,"LIVEFEED")==0){
 		RelayBackMsg(ID,"LivefeedALL",socket);
 		bubbleSort(Clist);
-		for(int i = 0; i < Clist->tail; i++){
+		int i = 0; 
+		while(i < Clist->tail){
 		for(int x = 0; x < MAXUSER; x++){
 			if(Clist->next[i].ClientChan[x].Client.ID == ID.ID && Clist->next[i].ID != 256){
 			Subbed = 1;
 			while(1){
 				int read = Clist->next[i].ClientChan[x].Read;
 				ClientID temp; temp.ID = ID.ID; temp.mode = OFF;
+
 				if(Clist->next[i].Msg[read].truth == 0){
 					RelayBackMsg(temp,"STOP",socket);
 				}
+
 				if(Clist->next[i].Msg[read].truth == 1){
 					sprintf(msg,"%d:",Clist->next[i].ID);
 					strcat(msg,Clist->next[i].Msg[read].Msg);
 					RelayBackMsg(temp,msg,socket);
 					Clist->next[i].ClientChan[x].Read++;
 					Clist->next[i].ClientChan[x].NonRead--;
-					}
+				}
+
 				numbytes=recv(socket, &temp, sizeof(ClientID), 0);
 				if(numbytes > 0){
 					if(strcmp(temp.Message,"BREAK")==0){
 						RelayBackMsg(temp,"BEANS",socket);// CONFIRM BACK TO CLIENT SUCCESS THAT SERVER DISBANDED
 						return;
 						}
-					else if(strcmp(temp.Message,"STOP")!=0){
+					else if(strcmp(temp.Message,"STOP")==0){
 						break;
 						}
 				}
 			}
 		}
 	}
-		if(Clist->next[i].ID == 256){
+
+		if(Clist->next[i+1].ID == 256){
 			if(Subbed == 0){
 				printf("subbed: %d\n", Subbed);
 				RelayBackMsg(ID,"NONE",socket);
 				return;
 			}
 			i = 0;
+		}else{
+			i++;
 		}
 	}
-	
 }
+
 	if(CheckNumber(socket,ID,"LIVEFEED") == "\0")
 		return;
 	ptr = malloc(sizeof(CheckNumber(socket,ID,"LIVEFEED")));
@@ -656,36 +663,25 @@ void SEND(ClientID ID, int socket)
 			}
 		}
 			/*Place message within the channel if it exists */
-			Channel *current = Channels;
-			while(current != NULL)
-			{
-				if(current->ID == channel){	
-					if(current->Msg == NULL){// Create head of message if it never existed
-						current->Msg[0].tail = current->Msg;
-						current->Msg[0].next = NULL;
-						strcpy(current->Msg[0].Msg,message);
-						current->TotalMsg++;
-						if(current->ClientChan != NULL){
-							current->ClientChan->NonRead++;
-						}
-						
-					}
-					else{// Follow up on message using the tail node.
-						Messages *new = malloc(sizeof(Messages));
-						new->next = NULL;
-						strcpy(new->Msg,message);
-						current->Msg->tail->next = new;
-						current->Msg->tail = current->Msg->tail->next;
-						current->TotalMsg++;
+			for(int i = 0; i < 255; i++){
+				if(Clist->next[i].ID == channel){	
+					int c = Clist->next[i].TotalMsg;
+					if(Clist->next[i].Msg[c].truth == 0){// Create head of message if it never existed
+						strcpy(Clist->next[i].Msg[c].Msg,message);
+						Clist->next[i].Msg[c].truth = 1;
+						Clist->next[i].TotalMsg++;
 
-						if(current->ClientChan != NULL){
-							current->ClientChan->NonRead++;
+						for(int x = 0; x < MAXUSER; x++){
+							if(Clist->next[i].ClientChan[x].Client.ID != 0){
+								printf("nice twice");
+								Clist->next[i].ClientChan[x].NonRead++;
+							}
 						}
 					}
 					RelayBackMsg(ID, "sent",socket); return;
 				}
-				current = current->next;
 			}
+
 			/*Create message and new channel if the channels dont currently exist*/
 			Channel *new = CreateChannelMessage(channel,message,Channels);
 				if(Channels->ID == 256)

@@ -55,10 +55,10 @@ void close_server()
 
 void handler()
 {
-	 pid_t chpid = wait(NULL);
+	 pid_t chpid = wait(NULL);//obtain child ID.
 
 	for(int i = 0; i < 5; i++){
-		if(totalusers[i].PID==chpid){
+		if(totalusers[i].PID==chpid){// deslist the user from the queue.
 			totalusers[i].PID = 0;
 			totalusers[i].ID = 0;
 			break;
@@ -80,7 +80,7 @@ int main(int argc, char *argv[])
 		for(int x = 0; x < MAXUSER; x++){
 			Clist->next[i].ClientChan[x].Client.ID = 0;
 		}
-		Clist->next[i].Msg[0].truth = 0;
+		Clist->next[i].Msg[0].truth = 0;// declare first msg of every channel 0(NULL);
 	}
 
 	for(int i = 0; i < 5; i++){// Default value of ID
@@ -474,8 +474,7 @@ void NEXT(ClientID ID, int socket)
 					return;
 				}
 
-				ID.mode = PASS;
-				RelayBackMsg(ID,"\0",socket);
+				RelayBackMsg(ID,"\n",socket);
 				return;
 			}
 			}
@@ -506,7 +505,7 @@ void LIVEFEED(ClientID ID, int socket){
 			Subbed = 1;
 			while(1){
 				int read = Clist->next[i].ClientChan[x].Read;
-				ClientID temp; temp.ID = ID.ID; temp.mode = OFF;
+				ClientID temp; temp.ID = ID.ID; temp.mode = PASS;
 
 				if(Clist->next[i].Msg[read].truth == 0){
 					RelayBackMsg(temp,"STOP",socket);
@@ -523,7 +522,6 @@ void LIVEFEED(ClientID ID, int socket){
 				numbytes=recv(socket, &temp, sizeof(ClientID), 0);
 				if(numbytes > 0){
 					if(strcmp(temp.Message,"BREAK")==0){
-						RelayBackMsg(temp,"BEANS",socket);// CONFIRM BACK TO CLIENT SUCCESS THAT SERVER DISBANDED
 						return;
 						}
 					else if(strcmp(temp.Message,"STOP")==0){
@@ -536,7 +534,6 @@ void LIVEFEED(ClientID ID, int socket){
 
 		if(Clist->next[i+1].ID == 256){
 			if(Subbed == 0){
-				printf("subbed: %d\n", Subbed);
 				RelayBackMsg(ID,"NONE",socket);
 				return;
 			}
@@ -564,7 +561,7 @@ void LIVEFEED(ClientID ID, int socket){
 				return;
 			}
 
-			for(int i = 0; i < 255; i++){
+			for(int i = 0; i < Clist->tail; i++){
 			for(int x = 0; x < MAXUSER; x++){
 			if(Clist->next[i].ClientChan[x].Client.ID == ID.ID && Clist->next[i].ID == channel){
 				RelayBackMsg(ID,"Live Feed:",socket);
@@ -663,12 +660,13 @@ void SEND(ClientID ID, int socket)
 			}
 		}
 			/*Place message within the channel if it exists */
-			for(int i = 0; i < 255; i++){
+			for(int i = 0; i < Clist->tail; i++){
 				if(Clist->next[i].ID == channel){	
 					int c = Clist->next[i].TotalMsg;
 					if(Clist->next[i].Msg[c].truth == 0){// Create head of message if it never existed
 						strcpy(Clist->next[i].Msg[c].Msg,message);
-						Clist->next[i].Msg[c].truth = 1;
+						Clist->next[i].Msg[c].truth = 1;//Mark as checked
+						Clist->next[i].Msg[c+1].truth = 0;//Mark as null for next message.
 						Clist->next[i].TotalMsg++;
 
 						for(int x = 0; x < MAXUSER; x++){
@@ -684,16 +682,34 @@ void SEND(ClientID ID, int socket)
 
 			/*Create message and new channel if the channels dont currently exist*/
 			Channel *new = CreateChannelMessage(channel,message,Channels);
-				if(Channels->ID == 256)
+				if(Clist->next[0].ID == 256)
 			{
-				Channels = new;
-				ChannelHead = Channels;
-				ChannelTail = Channels;
+				for(int i = 0; i < MAXUSER; i++){Clist->next[0].ClientChan[i].Client.ID = 0;}// Initialize all to 0.
+				Clist->next[0].ID = channel;
+				Clist->next[0].TotalMsg = 0;
+				Clist->next[0].next = NULL;
+				Clist->tail = 1;
+
+				int c = Clist->next[0].TotalMsg;
+				strcpy(Clist->next[0].Msg[c].Msg,message);
+				Clist->next[0].Msg[c].truth = 1;
+				Clist->next[0].Msg[c+1].truth = 0;
+				Clist->next[0].TotalMsg++;
 			}
-			else
+			else if(Clist->next[Clist->tail].ID == 256)
 			{
-				ChannelTail->next = new;
-				ChannelTail = ChannelTail->next;			
+				int c = Clist->tail;
+				for(int i = 0; i < MAXUSER; i++){Clist->next[c].ClientChan[i].Client.ID = 0;}// Initialize all to 0.
+				Clist->next[c].ID = channel;
+				Clist->next[c].TotalMsg = 0;
+				Clist->next[c].next = NULL;
+				Clist->tail++;
+
+				int x = Clist->next[c].TotalMsg;
+				strcpy(Clist->next[c].Msg[x].Msg,message);
+				Clist->next[c].Msg[x].truth = 1;
+				Clist->next[c].Msg[x+1].truth = 0;
+				Clist->next[c].TotalMsg++;	
 			}
 		RelayBackMsg(ID, "sent",socket);
 }

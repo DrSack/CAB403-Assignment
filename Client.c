@@ -7,6 +7,7 @@
 #include <netinet/in.h> 
 #include <sys/socket.h> 
 #include <sys/shm.h>
+#include <sys/time.h>
 #include <unistd.h>
 #include <signal.h>
 #include <time.h>
@@ -75,6 +76,11 @@ void ConnectToServer(char* argv[])
 }
 
 void MainRun(){
+	struct timeval tv;// Set time out to socket.
+	tv.tv_sec = 1;
+	tv.tv_usec = 0;
+	setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
+
 		while(mainbool == 1){
 				char to_send[sizeof(ClientID)];
 				int chunck, c; ID.mode = OFF;
@@ -92,8 +98,7 @@ void MainRun(){
 						strcpy(ID.Message,"");//replace ID.message with nothing.
 						ssendClientID(sockfd, ID);
 					}
-				}
-					
+				}	
 
 				if(strcmp("BYE",ID.Message) == 0){
 					printf("Ending session..\n");
@@ -102,13 +107,15 @@ void MainRun(){
 					break;
 				}
 
-				if ((numbytes=recv(sockfd, &ID, sizeof(ClientID), 0)) == -1) {
-            		printf("Ending session..\n");
-					fflush(stdin);
-					fflush(stdout);
-					break;
-        		}
+				while(1){
+					if ((numbytes=recv(sockfd, &ID, sizeof(ClientID), 0)) == -1) {
+						printf("Ending session..\n");
+						fflush(stdin);
+						fflush(stdout);
+						break;
+        			}
 
+				
 				else if(numbytes > 0){
 					if(strcmp("NEXT ALL:",ID.Message) == 0){
 						while(1)
@@ -149,12 +156,7 @@ void MainRun(){
 							if(numbytes > 0){
 								if(strcmp(ID.Message,"STOP")==0){
 									if(manualdestroy == 1){
-										numbytes=recv(sockfd, &ID, sizeof(ClientID), 0);
-										if(numbytes > 0){
-											if(strcmp(ID.Message,"BEANS")==0){// CONFIRM THAT SERVER HAS DISBANDED
-											break;
-											}
-										}
+										break;
 									}
 									else{
 										RelayBackMsg(ID,"STOP",sockfd);
@@ -177,11 +179,6 @@ void MainRun(){
 						manualdestroy = 0;
 						signal(SIGINT, close_client);
 						signal(SIGHUP, close_client);
-						
-						for(int i = 0; i <100; i++) {
-							ClientID temp;
-							recv(sockfd, &temp, sizeof(ClientID), MSG_DONTWAIT);
-    					}
 					}
 
 					else if(strcmp("Live Feed:",ID.Message) == 0){
@@ -213,31 +210,18 @@ void MainRun(){
 						
 					}
 
-					else if(strstr(ID.Message,"STOP")!=NULL){
-						//Empty out from buffer.
-						while (1)
-						{
-							numbytes=recv(sockfd, &ID, sizeof(ClientID), 0);
-							if(strstr(ID.Message,"STOP")!=NULL){
-								continue;
-							}
-							else
-							{
-								break;
-							}
-						}
-						printf("From server: %s",ID.Message);
-					}
-
 					else if(ID.mode == OFF){
 						printf("From server: %s",ID.Message);
-						
 					}	
 						
+					else if(ID.mode != OFF){//If it aint off then loop
+						continue;
+					}
+
 					printf("\n\n");
 					fflush(stdin);
 					memset(buf,0,sizeof(buf));
-					
+					break;
 				}
 
 				else{
@@ -246,7 +230,8 @@ void MainRun(){
 					shutdown(sockfd,SHUT_RDWR);
 					break;
 				}
-				
+
+				}	
 			}
 
 		close(sockfd);

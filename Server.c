@@ -253,7 +253,7 @@ void RunClient(int new_fd){
 					SEND(temp,new_fd);
 					break;
 				}
-				else if(strstr(temp.Message,"BYE")!=NULL){
+				else if(strcmp(temp.Message,"BYE")==0){
 					UNSUB_ALL(temp);
 					destroy = 1;
 					break;
@@ -304,7 +304,6 @@ void UnsubChannel(ClientID ID, int socket){
 			ConfirmedChannel(ptr,str,ID,channel,socket,"Not subscribed to channel: ");
 			return;
 			}
-				Channel *current = Channels;
 				for(int i = 0; i < Clist->tail; i++)
 				{	
 					if(Clist->next[i].ID == channel){
@@ -422,31 +421,22 @@ void NEXT(ClientID ID, int socket)
 
 	if(strcmp(ID.Message,"NEXT")==0){// Single NEXT command
 		RelayBackMsg(ID, "NEXT ALL:", socket);
+		bubbleSort(Clist);
 		int Subbed = 0;
-		Channel *current = Channels;
-		while(current != NULL)//Go through all channels
-		{
-		if(current->ClientChan != NULL){
-			ChannelClient *Ccurrent = current->ClientChan;
-			while(Ccurrent != NULL && Ccurrent->Client.ID != ID.ID){
-				Ccurrent = Ccurrent->next;
-			}
-			if(Ccurrent->Client.ID == ID.ID){
-				Messages *Message = current->Msg;// Get the messages
+		for(int i = 0; i < 255; i++){
+		for(int x = 0; x < MAXUSER; x++){
+			if(Clist->next[i].ClientChan[x].Client.ID == ID.ID){
+				int read = Clist->next[i].ClientChan[x].Read;
 				Subbed = 1;
-				for(int i = 0; i < current->ClientChan->Read; i++){//Skip all messages that have been read
-				Message = Message->next;
-				}
-				if(Message!=NULL){// If the message is not not null then read it.
-					sprintf(msg,"%d:",current->ID);
-					strcat(msg,Message->Msg);
+				if(Clist->next[i].Msg[read].truth == 1){// If the message is not not null then read it.
+					sprintf(msg,"%d:",Clist->next[i].ID);
+					strcat(msg,Clist->next[i].Msg[read].Msg);
 					RelayBackMsg(ID,msg,socket);
-					current->ClientChan->Read++;
-					current->ClientChan->NonRead--;
+					Clist->next[i].ClientChan[x].Read++;
+					Clist->next[i].ClientChan[x].NonRead--;
 				}
-			}
 		}
-		current = current->next;
+		}
 		}
 		if(Subbed == 0){
 			RelayBackMsg(ID, "Not subscribed to any channels", socket);
@@ -472,7 +462,6 @@ void NEXT(ClientID ID, int socket)
 		return;
 		}
 
-		Channel *current = Channels;
 		for(int i = 0; i < 255; i++){	
 			for(int x = 0; x < MAXUSER; x++){
 			if(Clist->next[i].ClientChan[x].Client.ID == ID.ID && Clist->next[i].ID == channel){
@@ -480,8 +469,8 @@ void NEXT(ClientID ID, int socket)
 				if(Clist->next[i].Msg[read].truth == 1){
 					ID.mode = OFF;
 					RelayBackMsg(ID, Clist->next[i].Msg[read].Msg, socket);
-					current->ClientChan->Read++;
-					current->ClientChan->NonRead--;
+					Clist->next[i].ClientChan[x].Read++;
+					Clist->next[i].ClientChan[x].NonRead--;
 					return;
 				}
 
@@ -510,54 +499,47 @@ void LIVEFEED(ClientID ID, int socket){
 	if(strcmp(ID.Message,"LIVEFEED")==0){
 		RelayBackMsg(ID,"LivefeedALL",socket);
 		bubbleSort(Clist);
-		Channel *current = Channels;
-		while(current != NULL)
-		{
-		if(current->ClientChan != NULL){
-			ChannelClient *Ccurrent = current->ClientChan;
-			while(Ccurrent != NULL && Ccurrent->Client.ID != ID.ID){
-				Ccurrent = Ccurrent->next;
-			}
-			if(Ccurrent->Client.ID == ID.ID){
-			Messages *Message = current->Msg; Subbed = 1;
-			for(int i = 0; i < current->ClientChan->Read; i++){Message = Message->next;}
+		for(int i = 0; i < Clist->tail; i++){
+		for(int x = 0; x < MAXUSER; x++){
+			if(Clist->next[i].ClientChan[x].Client.ID == ID.ID && Clist->next[i].ID != 256){
+			Subbed = 1;
 			while(1){
+				int read = Clist->next[i].ClientChan[x].Read;
 				ClientID temp; temp.ID = ID.ID; temp.mode = OFF;
-				if(Message == NULL){
+				if(Clist->next[i].Msg[read].truth == 0){
 					RelayBackMsg(temp,"STOP",socket);
 				}
-				if(Message != NULL){
-					sprintf(msg,"%d:",current->ID);
-					strcat(msg,Message->Msg);
+				if(Clist->next[i].Msg[read].truth == 1){
+					sprintf(msg,"%d:",Clist->next[i].ID);
+					strcat(msg,Clist->next[i].Msg[read].Msg);
 					RelayBackMsg(temp,msg,socket);
-					current->ClientChan->Read++;
-					current->ClientChan->NonRead--;
-					Message = Message->next;
+					Clist->next[i].ClientChan[x].Read++;
+					Clist->next[i].ClientChan[x].NonRead--;
 					}
 				numbytes=recv(socket, &temp, sizeof(ClientID), 0);
 				if(numbytes > 0){
-					if(strstr(temp.Message,"BREAK")!=NULL){
+					if(strcmp(temp.Message,"BREAK")==0){
+						RelayBackMsg(temp,"BEANS",socket);// CONFIRM BACK TO CLIENT SUCCESS THAT SERVER DISBANDED
 						return;
 						}
-					else if(strstr(temp.Message,"STOP")!=NULL){
+					else if(strcmp(temp.Message,"STOP")!=0){
 						break;
 						}
 				}
 			}
 		}
 	}
-		if(current->next != NULL){
-			current = current->next;
-		}
-		else{
-			if(Subbed == 0){RelayBackMsg(ID,"NONE",socket);
-			return;
+		if(Clist->next[i].ID == 256){
+			if(Subbed == 0){
+				printf("subbed: %d\n", Subbed);
+				RelayBackMsg(ID,"NONE",socket);
+				return;
 			}
-			current = Channels;
+			i = 0;
 		}
 	}
-	}
-
+	
+}
 	if(CheckNumber(socket,ID,"LIVEFEED") == "\0")
 		return;
 	ptr = malloc(sizeof(CheckNumber(socket,ID,"LIVEFEED")));
@@ -570,34 +552,27 @@ void LIVEFEED(ClientID ID, int socket){
 				return;
 			}
 				
-			if(Channels == NULL){
+			if(Clist->next[0].ID == 256){
 				ConfirmedChannel(ptr,str,ID,channel,socket,"Not subscribed to channel: ");
 				return;
 			}
-			
-			Channel *current = Channels;
-			while(current != NULL)
-			{
-			if(current->ClientChan != NULL && current->ID == channel){
-			ChannelClient *Ccurrent = current->ClientChan;
-			while(Ccurrent != NULL && Ccurrent->Client.ID != ID.ID){
-				Ccurrent = Ccurrent->next;
-			}
-			if(Ccurrent->Client.ID == ID.ID){
-				Messages *Message = current->Msg;
+
+			for(int i = 0; i < 255; i++){
+			for(int x = 0; x < MAXUSER; x++){
+			if(Clist->next[i].ClientChan[x].Client.ID == ID.ID && Clist->next[i].ID == channel){
 				RelayBackMsg(ID,"Live Feed:",socket);
-				for(int i = 0; i < current->ClientChan->Read; i++){Message = Message->next;}
 				while(1){
+					int read = Clist->next[i].ClientChan[x].Read;
 					ClientID temp;
-					if(Message == NULL){
+					if(Clist->next[i].Msg[read].truth == 0){
 						RelayBackMsg(ID,"Pass",socket);
 					}
-					if(Message != NULL){
-						RelayBackMsg(ID,Message->Msg,socket);
-						current->ClientChan->Read++;
-						current->ClientChan->NonRead--;
-						Message = Message->next;
+					if(Clist->next[i].Msg[read].truth == 1){
+						RelayBackMsg(ID,Clist->next[i].Msg[read].Msg,socket);
+						Clist->next[i].ClientChan[x].Read++;
+						Clist->next[i].ClientChan[x].NonRead--;
 						}
+
 					if ((numbytes=recv(socket, &temp, sizeof(ClientID), 0)) == -1) {
 						perror("recv");
 						continue;
@@ -610,7 +585,6 @@ void LIVEFEED(ClientID ID, int socket){
 				}	
 			}
 			}
-	current = current->next;
 	}
 	ConfirmedChannel(ptr,str,ID,channel,socket,"Not subscribed to channel: ");	
 	}

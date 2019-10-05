@@ -77,11 +77,12 @@ void ConnectToServer(char* argv[])
 void MainRun(){
 		while(mainbool == 1){
 				char to_send[sizeof(ClientID)];
-				int chunck;
-				ID.mode = OFF;
+				int chunck, c; ID.mode = OFF;
 				printf("Command:");
 				fgets(buf, 1024, stdin);
-
+				if(buf[0] == '\n'){
+					strcpy(buf," ");
+				}
 				if (chunck = sscanf(buf, "%[^\n]%*c", to_send) >= 0 ){// check if empty string
 					if(chunck == 1){// send package
 						strcpy(ID.Message,to_send);
@@ -148,27 +149,32 @@ void MainRun(){
 							
 								if(strcmp(ID.Message,"STOP")==0){
 									if(manualdestroy == 1){
-										strcpy(ID.Message,"BREAK");
-										ssendClientID(sockfd, ID);
-										break;
+										numbytes=recv(sockfd, &ID, sizeof(ClientID), 0);
+										if(numbytes > 0){
+											if(strcmp(ID.Message,"BEANS")==0){// CONFIRM THAT SERVER HAS DISBANDED
+											break;
+											}
+										}
 									}
 									else{
 										if(manualdestroy == 1){
-										strcpy(ID.Message,"BREAK");
-										ssendClientID(sockfd, ID);
-										break;
+										numbytes=recv(sockfd, &ID, sizeof(ClientID), 0);
+										if(numbytes > 0){
+											if(strcmp(ID.Message,"BEANS")==0){// CONFIRM THAT SERVER HAS DISBANDED
+											break;
+											}
 										}
-										strcpy(ID.Message,"STOP");
-										ssendClientID(sockfd, ID);
-										
+										}
+										RelayBackMsg(ID,"STOP",sockfd);
 									}
 								}
-								else if(strstr(ID.Message,"NONE")==NULL){
+
+								else if(strcmp(ID.Message,"NONE")==0){
 									printf("%s\n",ID.Message);
 									strcpy(ID.Message,"READY");
 									ssendClientID(sockfd, ID);
-									
 								}
+
 								else{
 									printf("Not Subscribed to any channels");
 									break;
@@ -205,6 +211,7 @@ void MainRun(){
 								ssendClientID(sockfd, ID);
 							}
 						}
+
 						livefeed = 0;
 						numbytes=recv(sockfd, &ID, sizeof(ClientID), 0);
 						strcpy(ID.Message,"STOP");
@@ -235,7 +242,8 @@ void MainRun(){
 					}	
 
 					printf("\n\n");
-					memset(buf,0,MAXDATASIZE);
+					fflush(stdin);
+					memset(buf,0,sizeof(buf));
 					
 				}
 
@@ -264,6 +272,7 @@ void close_client()
 void close_livefeedALL()
 {
 	printf("\nClient Livefeed closed...\n");
+	RelayBackMsg(ID,"BREAK",sockfd);
 	manualdestroy = 1;
 	livefeed2 = 1;
 	numbytes = 100;

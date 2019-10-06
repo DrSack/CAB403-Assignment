@@ -5,6 +5,7 @@
 
 #define MAXDATASIZE 100 /* max number of bytes we can get at once */
 #define QUERY_LENGTH 50
+#define MAXUSER 5
 
 typedef enum {PASS, OFF, SHUTDOWN} flags;
 
@@ -84,21 +85,20 @@ void RelayBackMsg(ClientID ID, char* clientmsg, int socket){
 	fflush(stdout);
 }
 
-Channel *CreateChannelMessage(int channel, char *message , Channel *new)
+void CreateChannelMessage(int channel, char *message , ChannelList *Clist)
 {
-    /* 
-    new->ClientChan = NULL;
-    new->TotalMsg = 0;
-    new->ID = channel;
-    new->next = NULL;
-    
-    new->Msg = malloc(sizeof(Messages));
-    new->Msg->tail = new->Msg;
-    new->Msg->next = NULL;
-    strcpy(new->Msg->Msg,message);
-    new->TotalMsg++;
-    return new;
-    */
+    int c = Clist->tail;
+    for(int i = 0; i < MAXUSER; i++){Clist->next[c].ClientChan[i].Client.ID = 0;}// Initialize all to 0.
+    Clist->next[c].ID = channel;
+    Clist->next[c].TotalMsg = 0;
+    Clist->next[c].next = NULL;
+    Clist->tail++;
+
+    int x = Clist->next[c].TotalMsg;
+    strcpy(Clist->next[c].Msg[x].Msg,message);
+    Clist->next[c].Msg[x].truth = 1;
+    Clist->next[c].Msg[x+1].truth = 0;
+    Clist->next[c].TotalMsg++;
 }
 
 ChannelClient *CreateNewCClient(ClientID ID, int NonRead, int shmemid)

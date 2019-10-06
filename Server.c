@@ -19,9 +19,6 @@
 #define MAXUSER 5
 #define CNULL 256
 
-
-Channel *Channels, *ChannelTail, *ChannelHead;
-ChannelClient *CCNULL;
 ChannelList *Clist;
 ClientID totalusers[5];
 
@@ -30,7 +27,6 @@ int totalChan[255];
 
 
 int sockfd;
-int ID_num = 1;
 
 void DisplayChannels();
 void ConnectAndAssign();
@@ -74,7 +70,7 @@ int main(int argc, char *argv[])
 
   	int shmid = shmget(IPC_PRIVATE, sizeof(ChannelList), IPC_CREAT | 0666);// setup shared memory
 	Clist = shmat(shmid, 0, 0);
-
+	Clist->tail = 0;
 	for(int i = 0; i < 255; i++){// Initialize all structs
 		Clist->next[i].ID = 256;
 		for(int x = 0; x < MAXUSER; x++){
@@ -279,7 +275,6 @@ void RunClient(int new_fd){
 			break;
 		}
 	}
-	shmdt(Channels);
 	exit(0);
 }
 
@@ -671,7 +666,6 @@ void SEND(ClientID ID, int socket)
 
 						for(int x = 0; x < MAXUSER; x++){
 							if(Clist->next[i].ClientChan[x].Client.ID != 0){
-								printf("nice twice");
 								Clist->next[i].ClientChan[x].NonRead++;
 							}
 						}
@@ -680,36 +674,8 @@ void SEND(ClientID ID, int socket)
 				}
 			}
 
-			/*Create message and new channel if the channels dont currently exist*/
-			Channel *new = CreateChannelMessage(channel,message,Channels);
-				if(Clist->next[0].ID == 256)
-			{
-				for(int i = 0; i < MAXUSER; i++){Clist->next[0].ClientChan[i].Client.ID = 0;}// Initialize all to 0.
-				Clist->next[0].ID = channel;
-				Clist->next[0].TotalMsg = 0;
-				Clist->next[0].next = NULL;
-				Clist->tail = 1;
+			if(Clist->next[Clist->tail].ID == 256)
+				CreateChannelMessage(channel,message,Clist);
 
-				int c = Clist->next[0].TotalMsg;
-				strcpy(Clist->next[0].Msg[c].Msg,message);
-				Clist->next[0].Msg[c].truth = 1;
-				Clist->next[0].Msg[c+1].truth = 0;
-				Clist->next[0].TotalMsg++;
-			}
-			else if(Clist->next[Clist->tail].ID == 256)
-			{
-				int c = Clist->tail;
-				for(int i = 0; i < MAXUSER; i++){Clist->next[c].ClientChan[i].Client.ID = 0;}// Initialize all to 0.
-				Clist->next[c].ID = channel;
-				Clist->next[c].TotalMsg = 0;
-				Clist->next[c].next = NULL;
-				Clist->tail++;
-
-				int x = Clist->next[c].TotalMsg;
-				strcpy(Clist->next[c].Msg[x].Msg,message);
-				Clist->next[c].Msg[x].truth = 1;
-				Clist->next[c].Msg[x+1].truth = 0;
-				Clist->next[c].TotalMsg++;	
-			}
 		RelayBackMsg(ID, "sent",socket);
 }

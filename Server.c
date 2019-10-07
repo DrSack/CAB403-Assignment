@@ -64,15 +64,12 @@ int main(int argc, char *argv[])
 	This is the main Server functionality where the main process will assign and fork processes
 	to allocate a process for a client, from then on the child process will send, read and recieve
 	new messages based on client preferences and update the shared memory
-
 	Parameters:
 	siz_size: The socket length size.
 	new_fd: The new client socket number.
 	sockfd: The server socket number.
-
 	Returns:
 	Nothing
-
 */
 
 void ConnectAndAssign(socklen_t sin_size, int new_fd, int sockfd)
@@ -138,13 +135,10 @@ void ConnectAndAssign(socklen_t sin_size, int new_fd, int sockfd)
 	This is the main function to be run by the child process, 
 	this takes input commands from the connected client
 	and reads and writes depending on the request sent by the client.
-
 	Parameters:
 	new_fd: The socket number of the client
-
 	Returns:
 	Nothing
-
 */
 
 void RunClient(int new_fd){// Main client function run by child process
@@ -226,7 +220,6 @@ void RunClient(int new_fd){// Main client function run by child process
 	The SUB function takes 1 parameter <Channel ID>
 	This function allows the client to subscribe to channels ranging from 0 - 255
 	Each channel has its own unique messages that the client can read or send on their own.
-
 	Parameters:
 	ID:	The Client struct to be sent.
 	socket: The client socket information.
@@ -253,25 +246,38 @@ void SUB(ClientID ID, int socket)
 					return;
 				}
 				
-					if(Clist->next[0].ID == 256){
-						CreateSub(Clist,ID,channel,0,0,1);
+					if(Clist->next[0].ID == 256){// If the head is 256(null) initiate start of array
+						for(int i = 0; i < MAXUSER; i++){Clist->next[0].ClientChan[i].Client.ID = 0;}// Initialize all to 0.
+						for(int i = 0; i < MAXUSER; i++){
+							if(Clist->next[0].ClientChan[i].Client.ID == 0){
+								Clist->next[0].ClientChan[i].Client = ID;
+								Clist->next[0].ClientChan[i].Read = 0;
+								Clist->next[0].ClientChan[i].NonRead = 0;
+								break;
+							}
+						}
+						Clist->next[0].ID = channel;
+						Clist->next[0].TotalMsg = 0;
+						Clist->tail = 1;
 						ConfirmedChannel(ptr,str,ID,channel,socket,"Subscribed to channel: ");
 						return;
 					}
 
-						for(int i = 0; i < Clist->tail+1; i++)
-						{				
-							if(Clist->next[i].ID == channel){
+						for(int i = 0; i < 255; i++)// Search through all channels
+						{					
+							if(Clist->next[i].ID == channel){//IF a channel is found with the same parameter
 								for(int x = 0; x < MAXUSER; x++){
-								if(Clist->next[i].ClientChan[x].Client.ID == 0){
-									CreateSub(Clist,ID,channel,i,Clist->next[i].TotalMsg,0);
-									ConfirmedChannel(ptr,str,ID,channel,socket,"Subscribed to channel: ");
-									return;
+								if(Clist->next[i].ClientChan[x].Client.ID == 0){//Add id to clientchan.
+								Clist->next[i].ClientChan[x].Client = ID;
+								Clist->next[i].ClientChan[x].Read = 0;
+								Clist->next[i].ClientChan[x].NonRead = Clist->next[i].TotalMsg;
+								ConfirmedChannel(ptr,str,ID,channel,socket,"Subscribed to channel: ");
+								return;
 								}
 
 								else if(Clist->next[i].ClientChan[x].Client.ID == ID.ID){
-									ConfirmedChannel(ptr,str,ID,channel,socket,"Already subscribed to channel: ");
-									return;
+								ConfirmedChannel(ptr,str,ID,channel,socket,"Already subscribed to channel: ");
+								return;
 								}
 							}
 							ConfirmedChannel(ptr,str,ID,channel,socket,"(FULL) channel: ");
@@ -279,9 +285,21 @@ void SUB(ClientID ID, int socket)
 							}
 							
 							
-							else if (Clist->next[i].ID == 256)
+							else if (Clist->next[i].ID == 256)//IF the next node is 256(null), then add a new channel
 							{	
-								CreateSub(Clist,ID,channel,i,0,1);
+								Clist->next[i].ID = channel;
+								Clist->next[i].TotalMsg = 0;
+								Clist->tail +=1;
+
+							for(int z = 0; z < MAXUSER; z++){Clist->next[i].ClientChan[z].Client.ID = 0;}// Initialize all to 0.
+								for(int x = 0; x < MAXUSER; x++){
+								if(Clist->next[i].ClientChan[x].Client.ID == 0){
+								Clist->next[i].ClientChan[x].Client = ID;
+								Clist->next[i].ClientChan[x].Read = 0;
+								Clist->next[i].ClientChan[x].NonRead = 0;
+								break;
+								}
+							}
 								ConfirmedChannel(ptr,str,ID,channel,socket,"Subscribed to channel: ");
 								return;
 							}
@@ -291,12 +309,11 @@ void SUB(ClientID ID, int socket)
 	else{
 		InvalidChannel(ptr,str,ID,channel,socket);// If not a valid parameter display error.
 		}		
-}	
+}
 
 /* 
 	The CHANNELS function which takes no parameters
 	This sends back to the client all the subscribed channels that client has.
-
 	Parameters:
 	temp:	The Client struct to be sent.
 	socket: The client socket information.
@@ -326,7 +343,6 @@ void CHANNELS(ClientID temp, int socket){// Sort and List out the current Subscr
 /* 
 	The UNSUB function takes 1 parameter <Channel ID>
 	This function allows the client to unsubscribe from channels ranging from 0 - 255.
-
 	Parameters:
 	ID:	The Client struct to be sent.
 	socket: The client socket information.
@@ -376,7 +392,6 @@ else{
 
 /* 
 	This unsubs all channels that the client is subscribed to
-
 	Parameters:
 	temp:	The Client ID needed to unsub the channel from.
 	
@@ -394,14 +409,13 @@ void UNSUB_ALL(ClientID temp){//Unsub all channels the client is subbed to.
 }
 
 /* 
-	The LIVEFEED function takes 1 parameter <Channel ID>
+	The NEXT function takes 1 parameter <Channel ID>
 	This function allows the client to see messages 1 step at a time.
 	With no parameter the client will be able to read all messages at
 	one step.
 
-	With LIVEFEED channel id the user will see messages for that specific
+	With NEXT channel id the user will see messages for that specific
 	channel one step only.
-
 	Parameters:
 	ID:	The Client struct to be sent.
 	socket: The client socket information.
@@ -487,7 +501,6 @@ void NEXT(ClientID ID, int socket)
 	The LIVEFEED function takes 1 parameter <Channel ID>
 	This function allows the client to see messages arriving in real time.
 	As well as reading the current messages that have not been read yet.
-
 	Parameters:
 	ID:	The Client struct to be sent.
 	socket: The client socket information.
@@ -514,10 +527,12 @@ void LIVEFEED(ClientID ID, int socket){
 				ClientID temp; temp.ID = ID.ID; temp.mode = PASS;
 
 				if(Clist->next[i].Msg[read].truth == 0){
-					RelayBackMsg(temp,"STOP",socket);
+					temp.mode = STOP;
+					RelayBackMsg(temp," ",socket);
 				}
 
 				if(Clist->next[i].Msg[read].truth == 1){
+					temp.mode = PASS;
 					sprintf(msg,"%d:",Clist->next[i].ID);
 					strcat(msg,Clist->next[i].Msg[read].Msg);
 					RelayBackMsg(temp,msg,socket);
@@ -527,10 +542,10 @@ void LIVEFEED(ClientID ID, int socket){
 
 				numbytes=recv(socket, &temp, sizeof(ClientID), 0);
 				if(numbytes > 0){
-					if(strcmp(temp.Message,"BREAK")==0){
+					if(temp.mode == BREAK){
 						return;
 						}
-					else if(strcmp(temp.Message,"STOP")==0){
+					else if(temp.mode == STOP){
 						break;
 						}
 				}
@@ -539,7 +554,8 @@ void LIVEFEED(ClientID ID, int socket){
 	}
 		if(Clist->next[i+1].ID == 256){//If the next node is invalid
 			if(Subbed == 0){//If no channels were open, return.
-				RelayBackMsg(ID,"NONE",socket);
+				ID.mode = NONE;
+				RelayBackMsg(ID," ",socket);
 				return;
 			}
 			i = 0;//return to beginning on list.
@@ -549,7 +565,8 @@ void LIVEFEED(ClientID ID, int socket){
 	}
 
 	if(Clist->tail == 0){//If no nodes exist.
-		RelayBackMsg(ID,"NONE",socket);
+		ID.mode = NONE;
+		RelayBackMsg(ID," ",socket);
 		return;
 	}
 }
@@ -611,7 +628,6 @@ void LIVEFEED(ClientID ID, int socket){
 	The Send function which takes 2 parameters to be sent by the client <Channel ID> <Message>
 	this will place the message within the message array even if the
 	channel is not subscribed.
-
 	Parameters:
 	ID:	The Client struct to be sent.
 	socket: The client socket information.
@@ -699,9 +715,7 @@ void SEND(ClientID ID, int socket)
 	This is responsible for initializing the shared memory.
 	This also sets the Channel ID's to 256 which is an
 	invalid channel number. As NULL cant be used for non-pointers.
-
 	This also sets the default user ID to 0.
-
 	Parameters: Nothing
 	
 	Returns: Nothing
@@ -728,7 +742,6 @@ void InitializeMemory()
 /* 
 	This is responsible initializing the sockets 
 	and binding and listening for other client sockets
-
 	Parameters:
 	argc: The total amount of parameters from main
 	argv: The string value of those parameters from main 

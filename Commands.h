@@ -28,7 +28,7 @@
 #define QUERY_LENGTH 50
 #define MAXUSER 5
 
-typedef enum {PASS, OFF, SHUTDOWN, STOP, BREAK} flags;
+typedef enum {PASS, OFF, SHUTDOWN, STOP, BREAK, NONE} flags;
 
 
 typedef struct ClientID_t {
@@ -118,11 +118,13 @@ void CreateChannelMessage(int channel, char *message , ChannelList *Clist)
 
 void CreateSub(ChannelList *Clist,ClientID ID,int channel, int idx, int NONREAD, int init)
 {
-    if(init = 1)
-        for(int i = 0; i < MAXUSER; i++){Clist->next[idx].ClientChan[idx].Client.ID = 0;}// Initialize all to 0.
+    if(init = 1){
+        for(int i = 0; i < MAXUSER; i++){Clist->next[idx].ClientChan[i].Client.ID = 0;}// Initialize all to 0.
         Clist->next[idx].ID = channel;
         Clist->next[idx].TotalMsg = 0;
         Clist->tail += 1;
+    }
+        
 
     for(int x = 0; x < MAXUSER; x++){
         if(Clist->next[idx].ClientChan[x].Client.ID == 0){
@@ -188,14 +190,6 @@ int checkString(char *Str)
     return 1;
 }
 
-void swap(Channel *a, Channel *b) 
-{ 
-    Channel temp = *a; 
-    *a = *b; 
-    *b = *a;
-
-}
-
 void bubbleSort(ChannelList *stacker) 
 { 
     /* Checking for empty list */
@@ -206,7 +200,7 @@ void bubbleSort(ChannelList *stacker)
 	{
 		for (int j = 0; j < stacker->tail; j++)             
 		{
-			if (stacker->next[i].ID < stacker->next[j].ID)                
+			if (stacker->next[i].ID < stacker->next[j].ID)// Swap highest channel with other channel             
 			{
 				Channel tmp = stacker->next[i];         
 				stacker->next[i] = stacker->next[j];           

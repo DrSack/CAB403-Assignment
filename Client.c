@@ -139,18 +139,19 @@ void MainRun(){
 						{
 							numbytes=recv(sockfd, &ID, sizeof(ClientID), 0);
 							if(numbytes > 0){
-								if(strcmp(ID.Message,"STOP")==0){
+								if(ID.mode == STOP){
 									if(manualdestroy == 1){
 										break;
 									}
 									else{
-										RelayBackMsg(ID,"STOP",sockfd);
+										ID.mode = STOP;
+										RelayBackMsg(ID," ",sockfd);
 									}
 								}
 
-								else if(strstr(ID.Message,"NONE")==NULL){
+								else if(ID.mode != NONE){
 									printf("%s\n",ID.Message);
-									strcpy(ID.Message,"READY");
+									strcpy(ID.Message," ");
 									ssendClientID(sockfd, ID);
 								}
 
@@ -237,7 +238,8 @@ void close_client()
 void close_livefeedALL()
 {
 	printf("\nClient Livefeed closed...\n");
-	RelayBackMsg(ID,"BREAK",sockfd);
+	ID.mode = BREAK;
+	RelayBackMsg(ID," ",sockfd);
 	manualdestroy = 1;
 	livefeed2 = 1;
 	numbytes = 100;

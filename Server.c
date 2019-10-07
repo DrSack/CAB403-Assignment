@@ -4,13 +4,15 @@
 #define MAXUSER 5
 #define CNULL 256
 
+
 ChannelList *Clist;
 ClientID totalusers[5];
-sem_t mutex;
+sem_t *full, *empty;
 
 int numbytes;
 int sockfd;
 int sigbool = 0;
+
 
 void InitializeMemory();
 void SocketInitialize();
@@ -28,6 +30,7 @@ void ConfirmedChannel();
 void close_server()//Close down the server if SIGINT is called
 {
 	printf("\nServer Closing...\n");
+	sem_destroy(empty);
 	CLOSESOCKET(totalusers);
 	close(sockfd);
 	shutdown(sockfd,SHUT_RDWR);
@@ -49,10 +52,18 @@ void handler()// This is called when a child process ends.
 
 int main(int argc, char *argv[])
 {
-	int new_fd;  /* listen on sock_fd, new connection on new_fd */
+	int new_fd, shm_id;  /* listen on sock_fd, new connection on new_fd */
 	struct sockaddr_in my_addr;    /* my address information */
 	socklen_t sin_size;
 	
+	if ((empty = sem_open("this is the semaphore", O_CREAT, 0644, 1)) == SEM_FAILED) {
+    perror("semaphore initilization");
+    exit(1);
+ 	}
+
+	sem_wait(empty);
+	sem_post(empty);
+
 	InitializeMemory();
 	SocketInitialize(argc, argv, my_addr);
 	ConnectAndAssign(sin_size,new_fd,sockfd);
@@ -64,10 +75,12 @@ int main(int argc, char *argv[])
 	This is the main Server functionality where the main process will assign and fork processes
 	to allocate a process for a client, from then on the child process will send, read and recieve
 	new messages based on client preferences and update the shared memory
+
 	Parameters:
 	siz_size: The socket length size.
 	new_fd: The new client socket number.
 	sockfd: The server socket number.
+
 	Returns:
 	Nothing
 */
@@ -539,7 +552,6 @@ void LIVEFEED(ClientID ID, int socket){
 					Clist->next[i].ClientChan[x].Read++;
 					Clist->next[i].ClientChan[x].NonRead--;
 				}
-
 				numbytes=recv(socket, &temp, sizeof(ClientID), 0);
 				if(numbytes > 0){
 					if(temp.mode == BREAK){
@@ -687,10 +699,13 @@ void SEND(ClientID ID, int socket)
 			}
 		}
 			/*Place message within the channel if it exists */
+			
 			for(int i = 0; i < Clist->tail; i++){
-				if(Clist->next[i].ID == channel){	
+				if(Clist->next[i].ID == channel){
+					
 					int c = Clist->next[i].TotalMsg;
 					if(Clist->next[i].Msg[c].truth == 0){// Create head of message if it never existed
+					sem_wait(empty);
 						strcpy(Clist->next[i].Msg[c].Msg,message);
 						Clist->next[i].Msg[c].truth = 1;//Mark as checked
 						Clist->next[i].Msg[c+1].truth = 0;//Mark as null for next message.
@@ -701,11 +716,14 @@ void SEND(ClientID ID, int socket)
 							}
 						}
 					}
+					sem_post(empty);
 					RelayBackMsg(ID, "sent",socket); return;
 				}
 			}
 			if(Clist->next[Clist->tail].ID == 256)
+				sem_wait(empty);
 				CreateChannelMessage(channel,message,Clist);
+				sem_post(empty);
 		RelayBackMsg(ID, "sent",socket);
 }
 

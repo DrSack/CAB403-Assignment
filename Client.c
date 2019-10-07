@@ -61,10 +61,6 @@ void ConnectToServer(char* argv[])
 }
 
 void MainRun(){
-	struct timeval tv;// Set time out to socket.
-	tv.tv_sec = 1;
-	tv.tv_usec = 0;
-	setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
 
 		while(mainbool == 1){
 				char to_send[sizeof(ClientID)];

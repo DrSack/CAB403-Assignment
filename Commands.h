@@ -19,6 +19,7 @@
 #include <pthread.h>
 #include <stdbool.h>
 #include <semaphore.h>
+#include <fcntl.h>
 
 #ifndef COMMANDS_H_
 #define COMMANDS_H_

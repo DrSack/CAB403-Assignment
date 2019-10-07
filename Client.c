@@ -1,19 +1,4 @@
-#include <stdio.h> 
-#include <stdlib.h> 
-#include <errno.h> 
-#include <string.h> 
-#include <netdb.h> 
-#include <sys/types.h> 
-#include <netinet/in.h> 
-#include <sys/socket.h> 
-#include <sys/shm.h>
-#include <sys/time.h>
-#include <unistd.h>
-#include <signal.h>
-#include <time.h>
-
 #include "Commands.h"
-
 
 int sockfd, numbytes;
 int livefeed = 0;
@@ -170,7 +155,7 @@ void MainRun(){
 								}
 
 								else{
-									printf("Not Subscribed to any channels");
+									printf("Not subscribed to any channels.");
 									break;
 								}
 							}
@@ -228,6 +213,7 @@ void MainRun(){
 					printf("Server has disconnected\n");
 					close(sockfd);
 					shutdown(sockfd,SHUT_RDWR);
+					mainbool = 0;
 					break;
 				}
 
@@ -242,6 +228,7 @@ void MainRun(){
 void close_client()
 {
 	printf("\nClient Closing...\n");
+	RelayBackMsg(ID,"BYE",sockfd);
 	close(sockfd);
 	shutdown(sockfd,SHUT_RDWR);
 	exit(1);

@@ -1,4 +1,25 @@
+#include <stdio.h> 
+#include <stdlib.h> 
+#include <errno.h> 
+#include <string.h> 
+#include <netdb.h> 
+#include <sys/types.h> 
+#include <netinet/in.h> 
+#include <sys/socket.h> 
 #include <sys/shm.h>
+#include <sys/time.h>
+#include <sys/wait.h> 
+#include <sys/ipc.h>
+#include <sys/stat.h>
+#include <sys/mman.h>
+#include <unistd.h>
+#include <signal.h>
+#include <time.h>
+#include <arpa/inet.h>
+#include <pthread.h>
+#include <stdbool.h>
+#include <semaphore.h>
+
 #ifndef COMMANDS_H_
 #define COMMANDS_H_
 
@@ -7,37 +28,32 @@
 #define QUERY_LENGTH 50
 #define MAXUSER 5
 
-typedef enum {PASS, OFF, SHUTDOWN} flags;
+typedef enum {PASS, OFF, SHUTDOWN, STOP, BREAK} flags;
 
 
 typedef struct ClientID_t {
    char Message[1024];
    int ID;
+   int socket;
    pid_t PID;
-   int BREAKALL;
    flags mode;
-   struct ClientID_t *next;
 }ClientID;
 
 typedef struct ChannelClient_t {
    ClientID Client;
    int Read;
    int NonRead;
-   struct ChannelClient_t  *next;
 }ChannelClient;
 
 typedef struct Messages_t {
    char Msg[1024];
    int truth;
-   struct Messages_t  *next;
-   struct Messages_t  *tail;
 }Messages;
 
 typedef struct Channel_t {
    int ID;
    int TotalMsg;
    struct ChannelClient_t ClientChan[5];
-   struct Channel_t *next;
    struct Messages_t Msg[1000];
 }Channel;
 
@@ -91,7 +107,6 @@ void CreateChannelMessage(int channel, char *message , ChannelList *Clist)
     for(int i = 0; i < MAXUSER; i++){Clist->next[c].ClientChan[i].Client.ID = 0;}// Initialize all to 0.
     Clist->next[c].ID = channel;
     Clist->next[c].TotalMsg = 0;
-    Clist->next[c].next = NULL;
     Clist->tail++;
 
     int x = Clist->next[c].TotalMsg;
@@ -101,17 +116,35 @@ void CreateChannelMessage(int channel, char *message , ChannelList *Clist)
     Clist->next[c].TotalMsg++;
 }
 
-ChannelClient *CreateNewCClient(ClientID ID, int NonRead, int shmemid)
+void CreateSub(ChannelList *Clist,ClientID ID,int channel, int idx, int NONREAD, int init)
 {
-    /*
-    ChannelClient *new;
-    new =(ChannelClient *)shmat(shmemid,NULL,0);
-	new->Client = ID;
-	new->NonRead = NonRead;
-	new->Read = 0;
-    new->next = NULL;
-    return new;
-    */
+    if(init = 1)
+        for(int i = 0; i < MAXUSER; i++){Clist->next[idx].ClientChan[idx].Client.ID = 0;}// Initialize all to 0.
+        Clist->next[idx].ID = channel;
+        Clist->next[idx].TotalMsg = 0;
+        Clist->tail += 1;
+
+    for(int x = 0; x < MAXUSER; x++){
+        if(Clist->next[idx].ClientChan[x].Client.ID == 0){
+            Clist->next[idx].ClientChan[x].Client = ID;
+            Clist->next[idx].ClientChan[x].Read = 0;
+            Clist->next[idx].ClientChan[x].NonRead = NONREAD;
+            break;
+        }
+    }
+    
+}
+
+void CLOSESOCKET(ClientID Clients[])
+{
+    for(int i = 0; i < 5; i++){
+		if(Clients[i].ID!=0){// remove sockets
+			Clients[i].PID = 0;
+			Clients[i].ID = 0;
+			close(Clients[i].socket);
+			shutdown(Clients[i].socket,SHUT_RDWR);
+		}
+	}
 }
 
 int CheckPara(ClientID ID, char* clientmsg, int socket){
@@ -153,25 +186,6 @@ int checkString(char *Str)
     }
 
     return 1;
-}
-
-void trimTrailing(char * str)
-{
-    int index, i;
-    index = -1;
-
-    i = 0;
-    while(str[i] != '\0')
-    {
-        if(str[i] != ' ' && str[i] != '\t' && str[i] != '\n')
-        {
-            index= i;
-        }
-
-        i++;
-    }
-
-    str[index + 1] = '\0';
 }
 
 void swap(Channel *a, Channel *b) 

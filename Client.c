@@ -17,7 +17,6 @@ void MainRun();
 
 int main(int argc, char *argv[])
 {
-
 	signal(SIGINT, close_client);
 	signal(SIGHUP, close_client);
 
@@ -149,7 +148,7 @@ void MainRun(){
 									RelayBackMsg(ID," ",sockfd);
 								}
 
-								else{
+								else if(ID.mode == NONE){
 									printf("Not subscribed to any channels.");
 									break;
 								}
@@ -159,35 +158,6 @@ void MainRun(){
 						manualdestroy = 0;
 						signal(SIGINT, close_client);
 						signal(SIGHUP, close_client);
-					}
-
-					else if(strcmp("Live Feed:",ID.Message) == 0){
-						signal(SIGINT, close_livefeedALL);
-						manualdestroy = 0;
-						while(livefeed == 0)
-						{
-							numbytes=recv(sockfd, &ID, sizeof(ClientID), 0);
-							if(numbytes > 0){
-								if(ID.mode == STOP){
-									if(manualdestroy == 1){
-										break;
-									}
-									else{
-										ID.mode = STOP;
-										RelayBackMsg(ID," ",sockfd);
-									}
-								}
-								else if(ID.mode == PASS){
-									printf("%s\n",ID.Message);
-									RelayBackMsg(ID," ",sockfd);
-								}
-							}
-						}
-						livefeed = 0;
-						manualdestroy = 0;
-						signal(SIGINT, close_client);
-						signal(SIGHUP, close_client);
-						
 					}
 
 					else if(ID.mode == OFF){

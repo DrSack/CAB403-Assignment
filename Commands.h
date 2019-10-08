@@ -31,7 +31,6 @@
 
 typedef enum {PASS, OFF, SHUTDOWN, STOP, BREAK, NONE} flags;
 
-
 typedef struct ClientID_t {
    char Message[1024];
    int ID;
@@ -118,22 +117,20 @@ void CreateChannelMessage(int channel, char *message , ChannelList *Clist)
     Clist->next[c].TotalMsg++;
 }
 
-void CreateSub(ChannelList *Clist,ClientID ID,int channel, int idx, int NONREAD, int init)
+void CreateSub(ChannelList *Clist, ClientID ID, int channel,int i)
 {
-    if(init = 1){
-        for(int i = 0; i < MAXUSER; i++){Clist->next[idx].ClientChan[i].Client.ID = 0;}// Initialize all to 0.
-        Clist->next[idx].ID = channel;
-        Clist->next[idx].TotalMsg = 0;
-        Clist->tail += 1;
-    }
-        
+    Clist->next[i].ID = channel;
+    Clist->next[i].TotalMsg = 0;
+    Clist->tail +=1;
 
-    for(int x = 0; x < MAXUSER; x++){
-        if(Clist->next[idx].ClientChan[x].Client.ID == 0){
-            Clist->next[idx].ClientChan[x].Client = ID;
-            Clist->next[idx].ClientChan[x].Read = 0;
-            Clist->next[idx].ClientChan[x].NonRead = NONREAD;
-            break;
+    for(int z = 0; z < MAXUSER; z++){Clist->next[i].ClientChan[z].Client.ID = 0;}// Initialize all to 0.
+        for(int x = 0; x < MAXUSER; x++){
+        if(Clist->next[i].ClientChan[x].Client.ID == 0){
+            printf("boom\n");
+        Clist->next[i].ClientChan[x].Client = ID;
+        Clist->next[i].ClientChan[x].Read = 0;
+        Clist->next[i].ClientChan[x].NonRead = 0;
+        break;
         }
     }
     

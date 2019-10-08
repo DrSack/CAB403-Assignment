@@ -12,7 +12,7 @@ sem_t *full, *empty;
 int numbytes;
 int sockfd;
 int sigbool = 0;
-
+int shmid;
 
 void InitializeMemory();
 void SocketInitialize();
@@ -34,9 +34,11 @@ void close_server()//Close down the server if SIGINT is called
 	printf("\nServer Closing...\n");
 	sem_destroy(empty);
 	sem_destroy(full);
+	
 	CLOSESOCKET(totalusers);
 	close(sockfd);
 	shutdown(sockfd,SHUT_RDWR);
+	shmctl(shmid, IPC_RMID, 0);//detach shared memory
 	exit(1);
 }
 
@@ -58,16 +60,6 @@ int main(int argc, char *argv[])
 	int new_fd, shm_id;  /* listen on sock_fd, new connection on new_fd */
 	struct sockaddr_in my_addr;    /* my address information */
 	socklen_t sin_size;
-	
-	if ((full = sem_open("this is the semaphore2", O_CREAT, 0644, 1)) == SEM_FAILED) {
-    perror("semaphore initilization");
-    exit(1);
- 	}
-
-	if ((empty = sem_open("this is the semaphore", O_CREAT, 0644, 1)) == SEM_FAILED) {
-    perror("semaphore initilization");
-    exit(1);
- 	}
 
 	InitializeMemory();
 	SocketInitialize(argc, argv, my_addr);
@@ -122,10 +114,8 @@ void ConnectAndAssign(socklen_t sin_size, int new_fd, int sockfd)
 							signal(SIGCHLD, handler);
 							signal(SIGINT, close_server);
 							sigbool = 1;
-						}
-							
-
-						for(int i = 0; i < 5; i++){
+						}	
+						for(int i = 0; i < 5; i++){//Add new client to queue
 						if(totalusers[i].ID==0){
 							totalusers[i].ID=i+1;
 							totalusers[i].PID = natural;
@@ -216,13 +206,17 @@ void RunClient(int new_fd){// Main client function run by child process
 			}
 		}
 		if(destroy == 1){//If BYE is sent kill socket and close process.
-			printf("Client has disconnected\n");
+			printf("Client %d has disconnected\n", temp.ID);
 			UNSUB_ALL(temp);
 			close(new_fd);
 			break;
 		}
 	}
-	exit(0);
+	if(shmdt(Clist)==-1){
+		perror("shmdt:");
+		exit(0);
+	}
+	exit(0);//Kill child process
 }
 
 /* 
@@ -249,72 +243,44 @@ void SUB(ClientID ID, int socket)
 	strcpy(ptr,CheckNumber(socket,ID,"SUB"));
 	int channel = atoi(ptr);
 
-		if(checkString(ptr)){
-				if(channel < 0 || channel > 255){// If below or over 255 display error
-					InvalidChannel(ptr,str,ID,channel,socket);
-					return;
-				}
-				
-					if(Clist->next[0].ID == 256){// If the head is 256(null) initiate start of array
-						for(int i = 0; i < MAXUSER; i++){Clist->next[0].ClientChan[i].Client.ID = 0;}// Initialize all to 0.
-						for(int i = 0; i < MAXUSER; i++){
-							if(Clist->next[0].ClientChan[i].Client.ID == 0){
-								Clist->next[0].ClientChan[i].Client = ID;
-								Clist->next[0].ClientChan[i].Read = 0;
-								Clist->next[0].ClientChan[i].NonRead = 0;
-								break;
-							}
+	if(checkString(ptr)){
+		if(channel < 0 || channel > 255){// If below or over 255 display error
+			InvalidChannel(ptr,str,ID,channel,socket);
+			return;
+		}
+			if(Clist->next[0].ID == 256){// If the head is 256(null) initiate start of array
+				CreateSub(Clist,ID,channel,0);
+				ConfirmedChannel(ptr,str,ID,channel,socket,"Subscribed to channel: ");
+				return;
+			}
+				for(int i = 0; i < 255; i++)// Search through all channels
+				{					
+					if(Clist->next[i].ID == channel){//IF a channel is found with the same parameter
+						for(int x = 0; x < MAXUSER; x++){
+						if(Clist->next[i].ClientChan[x].Client.ID == 0){//Add id to clientchan.
+						Clist->next[i].ClientChan[x].Client = ID;
+						Clist->next[i].ClientChan[x].Read = 0;
+						Clist->next[i].ClientChan[x].NonRead = Clist->next[i].TotalMsg;
+						ConfirmedChannel(ptr,str,ID,channel,socket,"Subscribed to channel: ");
+						return;
 						}
-						Clist->next[0].ID = channel;
-						Clist->next[0].TotalMsg = 0;
-						Clist->tail = 1;
+
+						else if(Clist->next[i].ClientChan[x].Client.ID == ID.ID){
+						ConfirmedChannel(ptr,str,ID,channel,socket,"Already subscribed to channel: ");
+						return;
+						}
+					}
+					ConfirmedChannel(ptr,str,ID,channel,socket,"(FULL) channel: ");
+					return;	
+					}
+					else if (Clist->next[i].ID == 256)//IF the next node is 256(null), then add a new channel
+					{	
+						CreateSub(Clist,ID,channel,i);
 						ConfirmedChannel(ptr,str,ID,channel,socket,"Subscribed to channel: ");
 						return;
 					}
-
-						for(int i = 0; i < 255; i++)// Search through all channels
-						{					
-							if(Clist->next[i].ID == channel){//IF a channel is found with the same parameter
-								for(int x = 0; x < MAXUSER; x++){
-								if(Clist->next[i].ClientChan[x].Client.ID == 0){//Add id to clientchan.
-								Clist->next[i].ClientChan[x].Client = ID;
-								Clist->next[i].ClientChan[x].Read = 0;
-								Clist->next[i].ClientChan[x].NonRead = Clist->next[i].TotalMsg;
-								ConfirmedChannel(ptr,str,ID,channel,socket,"Subscribed to channel: ");
-								return;
-								}
-
-								else if(Clist->next[i].ClientChan[x].Client.ID == ID.ID){
-								ConfirmedChannel(ptr,str,ID,channel,socket,"Already subscribed to channel: ");
-								return;
-								}
-							}
-							ConfirmedChannel(ptr,str,ID,channel,socket,"(FULL) channel: ");
-							return;	
-							}
-							
-							
-							else if (Clist->next[i].ID == 256)//IF the next node is 256(null), then add a new channel
-							{	
-								Clist->next[i].ID = channel;
-								Clist->next[i].TotalMsg = 0;
-								Clist->tail +=1;
-
-							for(int z = 0; z < MAXUSER; z++){Clist->next[i].ClientChan[z].Client.ID = 0;}// Initialize all to 0.
-								for(int x = 0; x < MAXUSER; x++){
-								if(Clist->next[i].ClientChan[x].Client.ID == 0){
-								Clist->next[i].ClientChan[x].Client = ID;
-								Clist->next[i].ClientChan[x].Read = 0;
-								Clist->next[i].ClientChan[x].NonRead = 0;
-								break;
-								}
-							}
-								ConfirmedChannel(ptr,str,ID,channel,socket,"Subscribed to channel: ");
-								return;
-							}
-						}				
-		}	
-					
+				}				
+		}				
 	else{
 		InvalidChannel(ptr,str,ID,channel,socket);// If not a valid parameter display error.
 		}		
@@ -340,7 +306,8 @@ void CHANNELS(ClientID temp, int socket){// Sort and List out the current Subscr
 					char num[128];
 					char nice[256];
 					strcpy(nice, "Subscribed to ");
-		    		sprintf(num,"%d  \tTotal Messages:%d \nRead Messages:%d \tUnread Messages:%d \n\n", Clist->next[i].ID, Clist->next[i].TotalMsg, Clist->next[i].ClientChan[x].Read, Clist->next[i].ClientChan[x].NonRead);
+		    		sprintf(num,"%d  \tTotal Messages:%d \nRead Messages:%d \tUnread Messages:%d \n\n", Clist->next[i].ID, 
+					Clist->next[i].TotalMsg, Clist->next[i].ClientChan[x].Read, Clist->next[i].ClientChan[x].NonRead);
 					strcat(nice,num);
 					RelayBackMsg(temp,nice,socket);//Send back information.
 					}
@@ -610,7 +577,7 @@ void LIVEFEED(ClientID ID, int socket){
 			for(int i = 0; i < Clist->tail; i++){
 			for(int x = 0; x < MAXUSER; x++){
 			if(Clist->next[i].ClientChan[x].Client.ID == ID.ID && Clist->next[i].ID == channel){
-				RelayBackMsg(ID,"Live Feed:",socket);
+				RelayBackMsg(ID,"LivefeedALL",socket);
 				while(1){
 					Hold();
 					int read = Clist->next[i].ClientChan[x].Read;
@@ -664,10 +631,9 @@ void LIVEFEED(ClientID ID, int socket){
 void SEND(ClientID ID, int socket)
 {
 	int channel;
-	char message[1024];
 	char str[80];
 	char num[10];
-
+	char message[1024];
 	if(CheckPara(ID,"SEND",socket) == -1){
 		return;
 	}
@@ -708,12 +674,10 @@ void SEND(ClientID ID, int socket)
 				strcat(message,ptr);
 				strcat(message," ");
 				ptr = strtok(NULL, " ");
-				}
-				
+				}			
 			}
 		}
 			/*Place message within the channel if it exists */
-			
 			for(int i = 0; i < Clist->tail; i++){
 				if(Clist->next[i].ID == channel){
 					int c = Clist->next[i].TotalMsg;
@@ -737,7 +701,7 @@ void SEND(ClientID ID, int socket)
 				sem_wait(empty);
 				CreateChannelMessage(channel,message,Clist);
 				sem_post(empty);
-		RelayBackMsg(ID, "sent",socket);
+			RelayBackMsg(ID, "sent",socket); return;	
 }
 
 
@@ -753,8 +717,18 @@ void SEND(ClientID ID, int socket)
  */
 
 void InitializeMemory()
-{
-	int shmid = shmget(IPC_PRIVATE, sizeof(ChannelList), IPC_CREAT | 0666);// setup shared memory
+{	/*Initialize semaphores for synchronization */
+	if ((full = sem_open("this is the semaphore2", O_CREAT, 0644, 1)) == SEM_FAILED) {
+    perror("semaphore initilization");
+    exit(1);
+ 	}
+
+	if ((empty = sem_open("this is the semaphore", O_CREAT, 0644, 1)) == SEM_FAILED) {
+    perror("semaphore initilization");
+    exit(1);
+ 	}
+
+	shmid = shmget(IPC_PRIVATE, sizeof(ChannelList), IPC_CREAT | 0666);// setup shared memory
 	Clist = shmat(shmid, 0, 0);
 	Clist->tail = 0;
 	Clist->readCount = 0;

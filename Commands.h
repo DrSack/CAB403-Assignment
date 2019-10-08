@@ -126,7 +126,6 @@ void CreateSub(ChannelList *Clist, ClientID ID, int channel,int i)
     for(int z = 0; z < MAXUSER; z++){Clist->next[i].ClientChan[z].Client.ID = 0;}// Initialize all to 0.
         for(int x = 0; x < MAXUSER; x++){
         if(Clist->next[i].ClientChan[x].Client.ID == 0){
-            printf("boom\n");
         Clist->next[i].ClientChan[x].Client = ID;
         Clist->next[i].ClientChan[x].Read = 0;
         Clist->next[i].ClientChan[x].NonRead = 0;

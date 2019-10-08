@@ -3,7 +3,7 @@
 #define BACKLOG 10 
 #define MAXUSER 5
 #define CNULL 256
-
+/*------------------------INITIALIZE VARIABLES ---------------- */
 
 ChannelList *Clist;
 ClientID totalusers[5];
@@ -13,7 +13,7 @@ int numbytes;
 int sockfd;
 int sigbool = 0;
 int shmid;
-
+/*------------------------DECLARE ALL FUNCTIONS------------------- */
 void InitializeMemory();
 void SocketInitialize();
 void ConnectAndAssign();
@@ -31,6 +31,7 @@ void Release();
 void close_server();
 void handler();
 
+/*------------------------MAIN FUNCTION------------------- */
 int main(int argc, char *argv[])
 {
 	int new_fd, shm_id;  /* listen on sock_fd, new connection on new_fd */
@@ -274,7 +275,7 @@ void SUB(ClientID ID, int socket)
 
 void CHANNELS(ClientID temp, int socket){// Sort and List out the current Subscribed Channels
 	Hold();
-	RelayBackMsg(temp,"CHANNELS ALL:",socket);
+	RelayBackMsg(temp,"Display",socket);
 	bubbleSort(Clist);
 	for(int i = 0; i < Clist->tail; i++){
 				for(int x = 0; x < MAXUSER; x++){//Check if the Client has an subscribed channels
@@ -386,9 +387,9 @@ void NEXT(ClientID ID, int socket)
 	char msg[1024];// Declare Variables
 	char str[80];
 	char *ptr;
-
+	/*----------------------- NEXT Parameterless sction ---------------------- */
 	if(strcmp(ID.Message,"NEXT")==0){// Single NEXT command
-		RelayBackMsg(ID, "NEXT ALL:", socket);
+		RelayBackMsg(ID, "Display", socket);
 		Hold();
 		bubbleSort(Clist);
 		int Subbed = 0;
@@ -411,10 +412,12 @@ void NEXT(ClientID ID, int socket)
 		if(Subbed == 0){
 			RelayBackMsg(ID, "Not subscribed to any channels.", socket);
 		}
-		RelayBackMsg(ID, "PASS", socket);
+		ID.mode = PASS;
+		RelayBackMsg(ID,"",socket);
 		return;
 	}
 
+	/*----------------------- NEXT <CHANNEL ID> sction ---------------------- */
 	if(CheckNumber(socket,ID,"NEXT") == "\0")// Check if number is valid
 		return;
 	ptr = malloc(sizeof(CheckNumber(socket,ID,"NEXT")));
@@ -476,6 +479,7 @@ void LIVEFEED(ClientID ID, int socket){
 	char *ptr;
 	int Subbed = 0;
 
+	/*----------------------- LIVEFEED Parameterless sction ---------------------- */
 	if(strcmp(ID.Message,"LIVEFEED")==0){//If LIVEFEED is parameterless
 		RelayBackMsg(ID,"LivefeedALL",socket);
 		bubbleSort(Clist);
@@ -534,6 +538,7 @@ void LIVEFEED(ClientID ID, int socket){
 	}
 }
 
+	/*----------------------- LIVEFEED <CHANNEL ID> sction ---------------------- */
 	if(CheckNumber(socket,ID,"LIVEFEED") == "\0")//Check if number is valid
 		return;
 	ptr = malloc(sizeof(CheckNumber(socket,ID,"LIVEFEED")));
@@ -624,7 +629,7 @@ void SEND(ClientID ID, int socket)
 		for(int i = 0; i < 2; i++){//Get number and message
 			ptr = strtok(NULL," ");
 			
-			if(i == 0){// Handle first parameter
+			if(i == 0){// ------- Handle first parameter -------
 				if(ptr == NULL){//If nothing exists for 1st parameter
 				RelayBackMsg(ID, "Invalid channel: NULL", socket);
 				return;
@@ -641,7 +646,7 @@ void SEND(ClientID ID, int socket)
 					return;
 				}
 			}
-			if(i == 1){// Handle second parameter
+			if(i == 1){//------- Handle second parameter -------
 				if(ptr == NULL){//If null add an empty space.
 				ptr = " ";
 				strcat(message,ptr);
@@ -657,7 +662,7 @@ void SEND(ClientID ID, int socket)
 			for(int i = 0; i < Clist->tail; i++){
 				if(Clist->next[i].ID == channel){
 					int c = Clist->next[i].TotalMsg;
-					if(Clist->next[i].Msg[c].truth == 0){// Create head of message if it never existed
+					if(Clist->next[i].Msg[c].truth == 0){//IF the current message doesnt exist
 						sem_wait(empty);
 						strcpy(Clist->next[i].Msg[c].Msg,message);
 						Clist->next[i].Msg[c].truth = 1;//Mark as checked
@@ -679,8 +684,6 @@ void SEND(ClientID ID, int socket)
 				sem_post(empty);
 			RelayBackMsg(ID, "sent",socket); return;	
 }
-
-
 
 /* 
 	This is responsible for initializing the shared memory.
@@ -708,7 +711,7 @@ void InitializeMemory()
 	Clist = shmat(shmid, 0, 0);
 	Clist->tail = 0;
 	Clist->readCount = 0;
-	
+
 	for(int i = 0; i < 255; i++){// Initialize all structs
 		Clist->next[i].ID = 256;
 		for(int x = 0; x < MAXUSER; x++){

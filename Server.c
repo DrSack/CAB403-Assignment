@@ -218,45 +218,45 @@ void SUB(ClientID ID, int socket)
 		return;
 	ptr = malloc(sizeof(CheckNumber(socket,ID,"SUB")));
 	strcpy(ptr,CheckNumber(socket,ID,"SUB"));
-	int channel = atoi(ptr);
+	int channel = atoi(ptr);//convert string to int
 
 	if(checkString(ptr)){
 		if(channel < 0 || channel > 255){// If below or over 255 display error
 			InvalidChannel(ptr,str,ID,channel,socket);
 			return;
 		}
-			if(Clist->next[0].ID == 256){// If the head is 256(null) initiate start of array
-				CreateSub(Clist,ID,channel,0);
+		if(Clist->next[0].ID == 256){// If the head is 256(null) initiate start of array
+			CreateSub(Clist,ID,channel,0);
+			ConfirmedChannel(ptr,str,ID,channel,socket,"Subscribed to channel: ");
+			return;
+		}
+		for(int i = 0; i < 255; i++)// Search through all channels
+		{					
+			if(Clist->next[i].ID == channel){//IF a channel is found with the same parameter
+				for(int x = 0; x < MAXUSER; x++){
+				if(Clist->next[i].ClientChan[x].Client.ID == 0){//Add id to clientchan.
+				Clist->next[i].ClientChan[x].Client = ID;
+				Clist->next[i].ClientChan[x].Read = 0;
+				Clist->next[i].ClientChan[x].NonRead = Clist->next[i].TotalMsg;
+				ConfirmedChannel(ptr,str,ID,channel,socket,"Subscribed to channel: ");
+				return;
+				}
+
+				else if(Clist->next[i].ClientChan[x].Client.ID == ID.ID){
+				ConfirmedChannel(ptr,str,ID,channel,socket,"Already subscribed to channel: ");
+				return;
+				}
+			}
+			ConfirmedChannel(ptr,str,ID,channel,socket,"(FULL) channel: ");
+			return;	
+			}
+			else if (Clist->next[i].ID == 256)//IF the next node is 256(null), then add a new channel
+			{	
+				CreateSub(Clist,ID,channel,i);
 				ConfirmedChannel(ptr,str,ID,channel,socket,"Subscribed to channel: ");
 				return;
 			}
-				for(int i = 0; i < 255; i++)// Search through all channels
-				{					
-					if(Clist->next[i].ID == channel){//IF a channel is found with the same parameter
-						for(int x = 0; x < MAXUSER; x++){
-						if(Clist->next[i].ClientChan[x].Client.ID == 0){//Add id to clientchan.
-						Clist->next[i].ClientChan[x].Client = ID;
-						Clist->next[i].ClientChan[x].Read = 0;
-						Clist->next[i].ClientChan[x].NonRead = Clist->next[i].TotalMsg;
-						ConfirmedChannel(ptr,str,ID,channel,socket,"Subscribed to channel: ");
-						return;
-						}
-
-						else if(Clist->next[i].ClientChan[x].Client.ID == ID.ID){
-						ConfirmedChannel(ptr,str,ID,channel,socket,"Already subscribed to channel: ");
-						return;
-						}
-					}
-					ConfirmedChannel(ptr,str,ID,channel,socket,"(FULL) channel: ");
-					return;	
-					}
-					else if (Clist->next[i].ID == 256)//IF the next node is 256(null), then add a new channel
-					{	
-						CreateSub(Clist,ID,channel,i);
-						ConfirmedChannel(ptr,str,ID,channel,socket,"Subscribed to channel: ");
-						return;
-					}
-				}				
+		}				
 		}				
 	else{
 		InvalidChannel(ptr,str,ID,channel,socket);// If not a valid parameter display error.
@@ -278,17 +278,17 @@ void CHANNELS(ClientID temp, int socket){// Sort and List out the current Subscr
 	RelayBackMsg(temp,"Display",socket);
 	bubbleSort(Clist);
 	for(int i = 0; i < Clist->tail; i++){
-				for(int x = 0; x < MAXUSER; x++){//Check if the Client has an subscribed channels
-					if(Clist->next[i].ClientChan[x].Client.ID == temp.ID){
-					char num[128];
-					char nice[256];
-					strcpy(nice, "Subscribed to ");
-		    		sprintf(num,"%d  \tTotal Messages:%d \nRead Messages:%d \tUnread Messages:%d \n\n", Clist->next[i].ID, 
-					Clist->next[i].TotalMsg, Clist->next[i].ClientChan[x].Read, Clist->next[i].ClientChan[x].NonRead);
-					strcat(nice,num);
-					RelayBackMsg(temp,nice,socket);//Send back information.
-					}
-				}
+		for(int x = 0; x < MAXUSER; x++){//Check if the Client has an subscribed channels
+			if(Clist->next[i].ClientChan[x].Client.ID == temp.ID){
+			char num[128];
+			char nice[256];
+			strcpy(nice, "Subscribed to ");
+			sprintf(num,"%d  \tTotal Messages:%d \nRead Messages:%d \tUnread Messages:%d \n\n", Clist->next[i].ID, 
+			Clist->next[i].TotalMsg, Clist->next[i].ClientChan[x].Read, Clist->next[i].ClientChan[x].NonRead);
+			strcat(nice,num);
+			RelayBackMsg(temp,nice,socket);//Send back information.
+			}
+		}
 		}
 		Release();
 		temp.mode = PASS;//Send back pass to signal done
@@ -322,25 +322,25 @@ void UNSUB(ClientID ID, int socket){
 			InvalidChannel(ptr,str,ID,channel,socket);
 			return;
 		}
-			if(Clist->next[0].ID == 256){//Throw error if head doesnt exist
-			ConfirmedChannel(ptr,str,ID,channel,socket,"Not subscribed to channel: ");
-			return;
-			}
-				for(int i = 0; i < Clist->tail; i++)//Check through the list.
-				{	
-					if(Clist->next[i].ID == channel){
-								for(int x = 0; x < MAXUSER; x++){
-								if(Clist->next[i].ClientChan[x].Client.ID == ID.ID){
-								sem_wait(empty);
-								Clist->next[i].ClientChan[x].Client.ID = 0;
-								sem_post(empty);
-								ConfirmedChannel(ptr,str,ID,channel,socket,"Unsubscribed from channel: ");
-								return;
-								}
-							}
-					}
+		if(Clist->next[0].ID == 256){//Throw error if head doesnt exist
+		ConfirmedChannel(ptr,str,ID,channel,socket,"Not subscribed to channel: ");
+		return;
+		}
+		for(int i = 0; i < Clist->tail; i++)//Check through the list.
+		{	
+			if(Clist->next[i].ID == channel){
+				for(int x = 0; x < MAXUSER; x++){
+				if(Clist->next[i].ClientChan[x].Client.ID == ID.ID){
+				sem_wait(empty);
+				Clist->next[i].ClientChan[x].Client.ID = 0;
+				sem_post(empty);
+				ConfirmedChannel(ptr,str,ID,channel,socket,"Unsubscribed from channel: ");
+				return;
 				}
-				ConfirmedChannel(ptr,str,ID,channel,socket,"Not subscribed to channel: ");
+			}
+			}
+		}
+		ConfirmedChannel(ptr,str,ID,channel,socket,"Not subscribed to channel: ");
 		}
 else{
 	InvalidChannel(ptr,str,ID,channel,socket);//Exeception if below 0 or above 255.
@@ -486,38 +486,38 @@ void LIVEFEED(ClientID ID, int socket){
 		int i = 0; 
 		while(i < Clist->tail){
 		for(int x = 0; x < MAXUSER; x++){//Check if any channels exist that the user is subbed to.
-			if(Clist->next[i].ClientChan[x].Client.ID == ID.ID && Clist->next[i].ID != 256){
-			Subbed = 1;
-			while(1){
-				Hold();
-				int read = Clist->next[i].ClientChan[x].Read;
-				ClientID temp; temp.ID = ID.ID; temp.mode = PASS;
+		if(Clist->next[i].ClientChan[x].Client.ID == ID.ID && Clist->next[i].ID != 256){
+		Subbed = 1;
+		while(1){
+			Hold();
+			int read = Clist->next[i].ClientChan[x].Read;
+			ClientID temp; temp.ID = ID.ID; temp.mode = PASS;
 
-				if(Clist->next[i].Msg[read].truth == 0){
-					temp.mode = STOP;
-					RelayBackMsg(temp," ",socket);
-				}
+			if(Clist->next[i].Msg[read].truth == 0){
+				temp.mode = STOP;
+				RelayBackMsg(temp," ",socket);
+			}
 
-				if(Clist->next[i].Msg[read].truth == 1){
-					temp.mode = PASS;
-					sprintf(msg,"%d:",Clist->next[i].ID);
-					strcat(msg,Clist->next[i].Msg[read].Msg);
-					RelayBackMsg(temp,msg,socket);
-					Clist->next[i].ClientChan[x].Read+=1;
-					Clist->next[i].ClientChan[x].NonRead-=1;
-				}
-				Release();
-				numbytes=recv(socket, &temp, sizeof(ClientID), 0);
-				if(numbytes > 0){
-					if(temp.mode == BREAK){
-						return;
-						}
-					else if(temp.mode == STOP){
-						break;
-						}
-				}
+			if(Clist->next[i].Msg[read].truth == 1){
+				temp.mode = PASS;
+				sprintf(msg,"%d:",Clist->next[i].ID);
+				strcat(msg,Clist->next[i].Msg[read].Msg);
+				RelayBackMsg(temp,msg,socket);
+				Clist->next[i].ClientChan[x].Read+=1;
+				Clist->next[i].ClientChan[x].NonRead-=1;
+			}
+			Release();
+			numbytes=recv(socket, &temp, sizeof(ClientID), 0);
+			if(numbytes > 0){
+				if(temp.mode == BREAK){
+					return;
+					}
+				else if(temp.mode == STOP){
+					break;
+					}
 			}
 		}
+	}
 	}
 		if(Clist->next[i+1].ID == 256){//If the next node is invalid
 			if(Subbed == 0){//If no channels were open, return.
@@ -545,51 +545,51 @@ void LIVEFEED(ClientID ID, int socket){
 	strcpy(ptr,CheckNumber(socket,ID,"LIVEFEED"));
 	int channel = atoi(ptr);//convert string to int	
 	if(checkString(ptr) && ptr != NULL){
-			if(channel < 0 || channel > 255){//invalid if above or below 0 or 255.
-				InvalidChannel(ptr,str,ID,channel,socket);
-				return;
+		if(channel < 0 || channel > 255){//invalid if above or below 0 or 255.
+			InvalidChannel(ptr,str,ID,channel,socket);
+			return;
+		}
+			
+		if(Clist->next[0].ID == 256){//If head is "empty"
+			ConfirmedChannel(ptr,str,ID,channel,socket,"Not subscribed to channel: ");
+			return;
+		}
+
+		for(int i = 0; i < Clist->tail; i++){
+		for(int x = 0; x < MAXUSER; x++){
+		if(Clist->next[i].ClientChan[x].Client.ID == ID.ID && Clist->next[i].ID == channel){
+		RelayBackMsg(ID,"LivefeedALL",socket);
+		while(1){
+			Hold();
+			int read = Clist->next[i].ClientChan[x].Read;
+			ClientID temp; temp.ID = ID.ID; temp.mode = PASS;
+
+			if(Clist->next[i].Msg[read].truth == 0){
+				temp.mode = STOP;
+				RelayBackMsg(temp," ",socket);//Parse pass to confirm no msg.
 			}
+
+			if(Clist->next[i].Msg[read].truth == 1){
+				temp.mode = PASS;
+				RelayBackMsg(temp,Clist->next[i].Msg[read].Msg,socket);//send msg
+				Clist->next[i].ClientChan[x].Read+=1;
+				Clist->next[i].ClientChan[x].NonRead-=1;//Increment and Decrement read and non read values
+				}
+
+			Release();
+			numbytes=recv(socket, &temp, sizeof(ClientID), 0);
+			if(numbytes > 0){
+				if(temp.mode == BREAK){
+					return;//If client has exit then stop loop.
+				}
+				else if(temp.mode == STOP){
+					continue;//continue the loop
+				}
 				
-			if(Clist->next[0].ID == 256){//If head is "empty"
-				ConfirmedChannel(ptr,str,ID,channel,socket,"Not subscribed to channel: ");
-				return;
 			}
-
-			for(int i = 0; i < Clist->tail; i++){
-			for(int x = 0; x < MAXUSER; x++){
-			if(Clist->next[i].ClientChan[x].Client.ID == ID.ID && Clist->next[i].ID == channel){
-				RelayBackMsg(ID,"LivefeedALL",socket);
-				while(1){
-					Hold();
-					int read = Clist->next[i].ClientChan[x].Read;
-					ClientID temp; temp.ID = ID.ID; temp.mode = PASS;
-
-					if(Clist->next[i].Msg[read].truth == 0){
-						temp.mode = STOP;
-						RelayBackMsg(temp," ",socket);//Parse pass to confirm no msg.
-					}
-
-					if(Clist->next[i].Msg[read].truth == 1){
-						temp.mode = PASS;
-						RelayBackMsg(temp,Clist->next[i].Msg[read].Msg,socket);//send msg
-						Clist->next[i].ClientChan[x].Read+=1;
-						Clist->next[i].ClientChan[x].NonRead-=1;//Increment and Decrement read and non read values
-						}
-
-					Release();
-					numbytes=recv(socket, &temp, sizeof(ClientID), 0);
-					if(numbytes > 0){
-						if(temp.mode == BREAK){
-							return;//If client has exit then stop loop.
-						}
-						else if(temp.mode == STOP){
-							continue;//continue the loop
-						}
-						
-					}
-				}	
-			}
-			}
+		}	
+		}
+		}
 	}//If none are hit from the forloop then Not Subscribed
 	ConfirmedChannel(ptr,str,ID,channel,socket,"Not subscribed to channel: ");	
 	}
@@ -658,31 +658,31 @@ void SEND(ClientID ID, int socket)
 				}			
 			}
 		}
-			/*Place message within the channel if it exists */
-			for(int i = 0; i < Clist->tail; i++){
-				if(Clist->next[i].ID == channel){
-					int c = Clist->next[i].TotalMsg;
-					if(Clist->next[i].Msg[c].truth == 0){//IF the current message doesnt exist
-						sem_wait(empty);
-						strcpy(Clist->next[i].Msg[c].Msg,message);
-						Clist->next[i].Msg[c].truth = 1;//Mark as checked
-						Clist->next[i].Msg[c+1].truth = 0;//Mark as null for next message.
-						Clist->next[i].TotalMsg++;
-						for(int x = 0; x < MAXUSER; x++){
-							if(Clist->next[i].ClientChan[x].Client.ID != 0){
-								Clist->next[i].ClientChan[x].NonRead++;//Increment non-read msg's to all clients.
-							}
-						}
+	/*Place message within the channel if it exists */
+	for(int i = 0; i < Clist->tail; i++){
+		if(Clist->next[i].ID == channel){
+			int c = Clist->next[i].TotalMsg;
+			if(Clist->next[i].Msg[c].truth == 0){//IF the current message doesnt exist
+				sem_wait(empty);
+				strcpy(Clist->next[i].Msg[c].Msg,message);
+				Clist->next[i].Msg[c].truth = 1;//Mark as checked
+				Clist->next[i].Msg[c+1].truth = 0;//Mark as null for next message.
+				Clist->next[i].TotalMsg++;
+				for(int x = 0; x < MAXUSER; x++){
+					if(Clist->next[i].ClientChan[x].Client.ID != 0){
+						Clist->next[i].ClientChan[x].NonRead++;//Increment non-read msg's to all clients.
 					}
-					sem_post(empty);
-					RelayBackMsg(ID, "sent",socket); return;
 				}
 			}
-			if(Clist->next[Clist->tail].ID == 256)
-				sem_wait(empty);
-				CreateChannelMessage(channel,message,Clist);
-				sem_post(empty);
-			RelayBackMsg(ID, "sent",socket); return;	
+			sem_post(empty);
+			RelayBackMsg(ID, "sent",socket); return;
+		}
+	}
+	if(Clist->next[Clist->tail].ID == 256)
+		sem_wait(empty);
+		CreateChannelMessage(channel,message,Clist);
+		sem_post(empty);
+	RelayBackMsg(ID, "sent",socket); return;	
 }
 
 /* 

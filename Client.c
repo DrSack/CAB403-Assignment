@@ -86,127 +86,126 @@ void ConnectToServer(char* argv[])
 */
 
 void MainRun(){
+while(mainbool == 1){
+		char to_send[sizeof(ClientID)];//Set buffer size to send.
+		int chunck, c; ID.mode = OFF;
+		printf("Command:");
+		fgets(buf, 1024, stdin);
+		if(buf[0] == '\n'){//If first element is newline
+			strcpy(buf," ");//Set to nothing.
+		}
+		if (chunck = sscanf(buf, "%[^\n]%*c", to_send) >= 0 ){// check if empty string
+			if(chunck == 1){// send package
+				strcpy(ID.Message,to_send);
+				ssendClientID(sockfd, ID);
+			}
+			else{
+				strcpy(ID.Message,"");//replace ID.message with nothing.
+				ssendClientID(sockfd, ID);
+			}
+		}	
 
-		while(mainbool == 1){
-				char to_send[sizeof(ClientID)];//Set buffer size to send.
-				int chunck, c; ID.mode = OFF;
-				printf("Command:");
-				fgets(buf, 1024, stdin);
-				if(buf[0] == '\n'){//If first element is newline
-					strcpy(buf," ");//Set to nothing.
-				}
-				if (chunck = sscanf(buf, "%[^\n]%*c", to_send) >= 0 ){// check if empty string
-					if(chunck == 1){// send package
-						strcpy(ID.Message,to_send);
-						ssendClientID(sockfd, ID);
-					}
-					else{
-						strcpy(ID.Message,"");//replace ID.message with nothing.
-						ssendClientID(sockfd, ID);
-					}
-				}	
+		if(strcmp("BYE",ID.Message) == 0){//Break out of the loop if user inputs BYE.
+			printf("Ending session..\n");
+			fflush(stdin);
+			fflush(stdout);
+			break;
+		}
 
-				if(strcmp("BYE",ID.Message) == 0){//Break out of the loop if user inputs BYE.
-					printf("Ending session..\n");
-					fflush(stdin);
-					fflush(stdout);
-					break;
-				}
-
-				while(1){
-					if ((numbytes=recv(sockfd, &ID, sizeof(ClientID), 0)) == -1) {
-						printf("Ending session..\n");
-						fflush(stdin);
-						fflush(stdout);
-						break;
-        			}
-
-				/*---------Displays function ----------- 
-				Whenever the server sends a continous stream of messages with a final break.
-				This function handles that server functionality.
-				*/
-				
-				else if(numbytes > 0){
-					if(strcmp("Display",ID.Message) == 0){
-						while(1)
-						{
-							numbytes=recv(sockfd, &ID, sizeof(ClientID), 0);
-							if(numbytes > 0){
-								if(ID.mode != PASS){
-									printf("%s\n",ID.Message);
-								}
-								else{
-									break;
-								}	
-							}
-						}
-					}
-					
-					/*---------Livefeed function ----------- 
-					allows users to have a live read of all subscribed channels.
-					*/
-					else if(strcmp("LivefeedALL",ID.Message) == 0){
-						signal(SIGINT, close_livefeedALL);
-						manualdestroy = 0;
-						while(livefeed == 0)
-						{
-							numbytes=recv(sockfd, &ID, sizeof(ClientID), 0);
-							if(numbytes > 0){
-								if(ID.mode == STOP){
-									if(manualdestroy == 1){
-										break;//break out of the loop if sigint is called
-									}
-									else{
-										ID.mode = STOP;
-										RelayBackMsg(ID," ",sockfd);
-									}
-								}
-
-								else if(ID.mode != NONE){
-									printf("%s\n",ID.Message);
-									RelayBackMsg(ID," ",sockfd);
-								}
-
-								else if(ID.mode == NONE){
-									printf("Not subscribed to any channels.");
-									break;
-								}
-							}
-						}
-						livefeed = 0;//reset back to default values.
-						manualdestroy = 0;
-						signal(SIGINT, close_client);
-						signal(SIGHUP, close_client);
-					}
-
-					else if(ID.mode == OFF){
-						printf("%s",ID.Message);//print any valid messages
-					}	
-						
-					else if(ID.mode != OFF){// If the message is invalid then loop.
-						continue;
-					}
-
-					printf("\n\n");//Add space and reset buffer.
-					fflush(stdin);
-					memset(buf,0,sizeof(buf));
-					break;
-				}
-
-				else{
-					printf("Server has disconnected\n");// If the loop is broken shutdown
-					close(sockfd);
-					shutdown(sockfd,SHUT_RDWR);
-					mainbool = 0;
-					break;
-				}
-
-				}	
+		while(1){
+			if ((numbytes=recv(sockfd, &ID, sizeof(ClientID), 0)) == -1) {
+				printf("Ending session..\n");
+				fflush(stdin);
+				fflush(stdout);
+				break;
 			}
 
-		close(sockfd);
-		shutdown(sockfd,SHUT_RDWR);//Shutdown if loop is broken
-		exit(1);
+		/*---------Displays function ----------- 
+		Whenever the server sends a continous stream of messages with a final break.
+		This function handles that server functionality.
+		*/
+		
+		else if(numbytes > 0){
+			if(strcmp("Display",ID.Message) == 0){
+				while(1)
+				{
+					numbytes=recv(sockfd, &ID, sizeof(ClientID), 0);
+					if(numbytes > 0){
+						if(ID.mode != PASS){
+							printf("%s\n",ID.Message);
+						}
+						else{
+							break;
+						}	
+					}
+				}
+			}
+			
+			/*---------Livefeed function ----------- 
+			allows users to have a live read of all subscribed channels.
+			*/
+			else if(strcmp("LivefeedALL",ID.Message) == 0){
+				signal(SIGINT, close_livefeedALL);
+				manualdestroy = 0;
+				while(livefeed == 0)
+				{
+					numbytes=recv(sockfd, &ID, sizeof(ClientID), 0);
+					if(numbytes > 0){
+						if(ID.mode == STOP){
+							if(manualdestroy == 1){
+								break;//break out of the loop if sigint is called
+							}
+							else{
+								ID.mode = STOP;
+								RelayBackMsg(ID," ",sockfd);
+							}
+						}
+
+						else if(ID.mode != NONE){
+							printf("%s\n",ID.Message);
+							RelayBackMsg(ID," ",sockfd);
+						}
+
+						else if(ID.mode == NONE){
+							printf("Not subscribed to any channels.");
+							break;
+						}
+					}
+				}
+				livefeed = 0;//reset back to default values.
+				manualdestroy = 0;
+				signal(SIGINT, close_client);
+				signal(SIGHUP, close_client);
+			}
+
+			else if(ID.mode == OFF){
+				printf("%s",ID.Message);//print any valid messages
+			}	
+				
+			else if(ID.mode != OFF){// If the message is invalid then loop.
+				continue;
+			}
+
+			printf("\n\n");//Add space and reset buffer.
+			fflush(stdin);
+			memset(buf,0,sizeof(buf));
+			break;
+		}
+
+		else{
+			printf("Server has disconnected\n");// If the loop is broken shutdown
+			close(sockfd);
+			shutdown(sockfd,SHUT_RDWR);
+			mainbool = 0;
+			break;
+		}
+
+		}	
+	}
+
+close(sockfd);
+shutdown(sockfd,SHUT_RDWR);//Shutdown if loop is broken
+exit(1);
 }
 
 /*----- Closes the client using SIGINT ----- */

@@ -2,7 +2,6 @@
 
 int sockfd, numbytes;
 int livefeed = 0;
-int livefeed2 = 0;
 int manualdestroy = 0;
 int mainbool= 1;
 char buf[1024];
@@ -131,7 +130,7 @@ void MainRun(){
 					else if(strcmp("LivefeedALL",ID.Message) == 0){
 						signal(SIGINT, close_livefeedALL);
 						manualdestroy = 0;
-						while(livefeed2 == 0)
+						while(livefeed == 0)
 						{
 							numbytes=recv(sockfd, &ID, sizeof(ClientID), 0);
 							if(numbytes > 0){
@@ -147,8 +146,7 @@ void MainRun(){
 
 								else if(ID.mode != NONE){
 									printf("%s\n",ID.Message);
-									strcpy(ID.Message," ");
-									ssendClientID(sockfd, ID);
+									RelayBackMsg(ID," ",sockfd);
 								}
 
 								else{
@@ -157,43 +155,43 @@ void MainRun(){
 								}
 							}
 						}
-						livefeed2 = 0;
+						livefeed = 0;
 						manualdestroy = 0;
 						signal(SIGINT, close_client);
 						signal(SIGHUP, close_client);
 					}
 
 					else if(strcmp("Live Feed:",ID.Message) == 0){
-						signal(SIGINT, close_livefeed);
+						signal(SIGINT, close_livefeedALL);
+						manualdestroy = 0;
 						while(livefeed == 0)
 						{
 							numbytes=recv(sockfd, &ID, sizeof(ClientID), 0);
-
 							if(numbytes > 0){
-								if(strcmp("Pass",ID.Message) == 0){
-
+								if(ID.mode == STOP){
+									if(manualdestroy == 1){
+										break;
+									}
+									else{
+										ID.mode = STOP;
+										RelayBackMsg(ID," ",sockfd);
+									}
 								}
-								else{
+								else if(ID.mode == PASS){
 									printf("%s\n",ID.Message);
+									RelayBackMsg(ID," ",sockfd);
 								}
-								
-
-								strcpy(ID.Message,"READY");
-								ssendClientID(sockfd, ID);
 							}
 						}
-
 						livefeed = 0;
-						numbytes=recv(sockfd, &ID, sizeof(ClientID), 0);
-						strcpy(ID.Message,"STOP");
-						ssendClientID(sockfd,ID);
+						manualdestroy = 0;
 						signal(SIGINT, close_client);
 						signal(SIGHUP, close_client);
 						
 					}
 
 					else if(ID.mode == OFF){
-						printf("From server: %s",ID.Message);
+						printf("%s",ID.Message);//The message
 					}	
 						
 					else if(ID.mode != OFF){//If it aint off then loop
@@ -237,13 +235,6 @@ void close_livefeedALL()
 	ID.mode = BREAK;
 	RelayBackMsg(ID," ",sockfd);
 	manualdestroy = 1;
-	livefeed2 = 1;
-	numbytes = 100;
-}
-
-void close_livefeed()
-{
-	printf("\nClient Livefeed closed...\n");
 	livefeed = 1;
 	numbytes = 100;
 }

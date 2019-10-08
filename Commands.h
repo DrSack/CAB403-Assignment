@@ -61,6 +61,7 @@ typedef struct Channel_t {
 typedef struct ChannelList_t {
    struct Channel_t next[255];
    int tail;
+   int readCount;
 }ChannelList;
 
 void ssend(int sock, char* message) {

@@ -26,11 +26,14 @@ void NEXT();
 void LIVEFEED();
 void SEND();
 void ConfirmedChannel();
+void Hold();
+void Release();
 
 void close_server()//Close down the server if SIGINT is called
 {
 	printf("\nServer Closing...\n");
 	sem_destroy(empty);
+	sem_destroy(full);
 	CLOSESOCKET(totalusers);
 	close(sockfd);
 	shutdown(sockfd,SHUT_RDWR);
@@ -56,13 +59,15 @@ int main(int argc, char *argv[])
 	struct sockaddr_in my_addr;    /* my address information */
 	socklen_t sin_size;
 	
-	if ((empty = sem_open("this is the semaphore", O_CREAT, 0644, 1)) == SEM_FAILED) {
+	if ((full = sem_open("this is the semaphore2", O_CREAT, 0644, 1)) == SEM_FAILED) {
     perror("semaphore initilization");
     exit(1);
  	}
 
-	sem_wait(empty);
-	sem_post(empty);
+	if ((empty = sem_open("this is the semaphore", O_CREAT, 0644, 1)) == SEM_FAILED) {
+    perror("semaphore initilization");
+    exit(1);
+ 	}
 
 	InitializeMemory();
 	SocketInitialize(argc, argv, my_addr);
@@ -161,37 +166,29 @@ void RunClient(int new_fd){// Main client function run by child process
 		fflush(stdout);	
 		ClientID temp; temp.mode = OFF;// Set enum value to OFF, this makes sure that messages are to be read.
     	while (1) {
-			printf("Waiting for msg...\n\n");
-
 	    	if ((numbytes=recv(new_fd, &temp, sizeof(ClientID), 0)) == -1) {
 				perror("recv");
         	}
-
 			if (numbytes > 0){
 				if(strcmp(temp.Message,"NULL")!=0){
 					printf("From Client %d: %s\n",temp.ID,temp.Message);
 				}
-
 				if(strstr(temp.Message,"UNSUB")!=NULL){
 					UNSUB(temp,new_fd);
 					break;
 				}
-
 				else if(strstr(temp.Message,"SUB")!=NULL){
 					SUB(temp, new_fd);
 					break;
 				}
-
 				else if(strcmp(temp.Message,"CHANNELS")==0){
 					CHANNELS(temp,new_fd);
 					break;
 				}
-
 				else if(strstr(temp.Message,"NEXT")!=NULL){
 					NEXT(temp,new_fd);
 					break;
 				}
-
 				else if(strstr(temp.Message,"LIVEFEED")!=NULL){
 					LIVEFEED(temp, new_fd);
 					break;
@@ -211,7 +208,6 @@ void RunClient(int new_fd){// Main client function run by child process
 				}			
 				break;
 			}  		
-
 			else{//If recv has an error kill socket and close process.
 				UNSUB_ALL(temp);
 				destroy = 1;
@@ -335,6 +331,7 @@ void SUB(ClientID ID, int socket)
  */
 
 void CHANNELS(ClientID temp, int socket){// Sort and List out the current Subscribed Channels
+	Hold();
 	RelayBackMsg(temp,"CHANNELS ALL:",socket);
 	bubbleSort(Clist);
 	for(int i = 0; i < Clist->tail; i++){
@@ -349,6 +346,7 @@ void CHANNELS(ClientID temp, int socket){// Sort and List out the current Subscr
 					}
 				}
 		}
+		Release();
 		temp.mode = PASS;//Send back pass to signal done
 		RelayBackMsg(temp,"",socket);
 }
@@ -389,7 +387,9 @@ void UNSUB(ClientID ID, int socket){
 					if(Clist->next[i].ID == channel){
 								for(int x = 0; x < MAXUSER; x++){
 								if(Clist->next[i].ClientChan[x].Client.ID == ID.ID){
+								sem_wait(empty);
 								Clist->next[i].ClientChan[x].Client.ID = 0;
+								sem_post(empty);
 								ConfirmedChannel(ptr,str,ID,channel,socket,"Unsubscribed from channel: ");
 								return;
 								}
@@ -415,7 +415,9 @@ void UNSUB_ALL(ClientID temp){//Unsub all channels the client is subbed to.
 		for(int i = 0; i < Clist->tail; i++){
 				for(int x = 0; x < MAXUSER; x++){
 					if(Clist->next[i].ClientChan[x].Client.ID == temp.ID){
+					sem_wait(empty);
 					Clist->next[i].ClientChan[x].Client.ID = 0;
+					sem_post(empty);
 				}
 			}
 		}
@@ -444,6 +446,7 @@ void NEXT(ClientID ID, int socket)
 
 	if(strcmp(ID.Message,"NEXT")==0){// Single NEXT command
 		RelayBackMsg(ID, "NEXT ALL:", socket);
+		Hold();
 		bubbleSort(Clist);
 		int Subbed = 0;
 		for(int i = 0; i < 255; i++){
@@ -461,6 +464,7 @@ void NEXT(ClientID ID, int socket)
 		}
 		}
 		}
+		Release();
 		if(Subbed == 0){
 			RelayBackMsg(ID, "Not subscribed to any channels.", socket);
 		}
@@ -468,18 +472,18 @@ void NEXT(ClientID ID, int socket)
 		return;
 	}
 
-	if(CheckNumber(socket,ID,"NEXT") == "\0")// Check if number is legit
+	if(CheckNumber(socket,ID,"NEXT") == "\0")// Check if number is valid
 		return;
 	ptr = malloc(sizeof(CheckNumber(socket,ID,"NEXT")));
 	strcpy(ptr,CheckNumber(socket,ID,"NEXT"));
 	int channel = atoi(ptr);//Convert string to int
 		
 	if(checkString(ptr) && ptr != NULL){
-		if(channel < 0 || channel > 255){
+		if(channel < 0 || channel > 255){// check if in range
 			InvalidChannel(ptr,str,ID,channel,socket);
 			return;
 		}
-		if(Clist->next[0].ID == 256){
+		if(Clist->next[0].ID == 256){//if head is null
 		ConfirmedChannel(ptr,str,ID,channel,socket,"Not subscribed to channel: ");
 		return;
 		}
@@ -487,15 +491,17 @@ void NEXT(ClientID ID, int socket)
 		for(int i = 0; i < 255; i++){	
 			for(int x = 0; x < MAXUSER; x++){
 			if(Clist->next[i].ClientChan[x].Client.ID == ID.ID && Clist->next[i].ID == channel){
+				Hold();
 				int read = Clist->next[i].ClientChan[x].Read;
 				if(Clist->next[i].Msg[read].truth == 1){
 					ID.mode = OFF;
 					RelayBackMsg(ID, Clist->next[i].Msg[read].Msg, socket);
 					Clist->next[i].ClientChan[x].Read++;
 					Clist->next[i].ClientChan[x].NonRead--;
+					Release();
 					return;
 				}
-
+				Release();
 				RelayBackMsg(ID,"\n",socket);
 				return;
 			}
@@ -536,6 +542,7 @@ void LIVEFEED(ClientID ID, int socket){
 			if(Clist->next[i].ClientChan[x].Client.ID == ID.ID && Clist->next[i].ID != 256){
 			Subbed = 1;
 			while(1){
+				Hold();
 				int read = Clist->next[i].ClientChan[x].Read;
 				ClientID temp; temp.ID = ID.ID; temp.mode = PASS;
 
@@ -549,9 +556,10 @@ void LIVEFEED(ClientID ID, int socket){
 					sprintf(msg,"%d:",Clist->next[i].ID);
 					strcat(msg,Clist->next[i].Msg[read].Msg);
 					RelayBackMsg(temp,msg,socket);
-					Clist->next[i].ClientChan[x].Read++;
-					Clist->next[i].ClientChan[x].NonRead--;
+					Clist->next[i].ClientChan[x].Read+=1;
+					Clist->next[i].ClientChan[x].NonRead-=1;
 				}
+				Release();
 				numbytes=recv(socket, &temp, sizeof(ClientID), 0);
 				if(numbytes > 0){
 					if(temp.mode == BREAK){
@@ -587,8 +595,7 @@ void LIVEFEED(ClientID ID, int socket){
 		return;
 	ptr = malloc(sizeof(CheckNumber(socket,ID,"LIVEFEED")));
 	strcpy(ptr,CheckNumber(socket,ID,"LIVEFEED"));
-	int channel = atoi(ptr);//convert string to int
-		
+	int channel = atoi(ptr);//convert string to int	
 	if(checkString(ptr) && ptr != NULL){
 			if(channel < 0 || channel > 255){//invalid if above or below 0 or 255.
 				InvalidChannel(ptr,str,ID,channel,socket);
@@ -605,25 +612,32 @@ void LIVEFEED(ClientID ID, int socket){
 			if(Clist->next[i].ClientChan[x].Client.ID == ID.ID && Clist->next[i].ID == channel){
 				RelayBackMsg(ID,"Live Feed:",socket);
 				while(1){
+					Hold();
 					int read = Clist->next[i].ClientChan[x].Read;
 					ClientID temp; temp.ID = ID.ID; temp.mode = PASS;
+
 					if(Clist->next[i].Msg[read].truth == 0){
-						RelayBackMsg(temp,"Pass",socket);//Parse pass to confirm no msg.
+						temp.mode = STOP;
+						RelayBackMsg(temp," ",socket);//Parse pass to confirm no msg.
 					}
+
 					if(Clist->next[i].Msg[read].truth == 1){
+						temp.mode = PASS;
 						RelayBackMsg(temp,Clist->next[i].Msg[read].Msg,socket);//send msg
-						Clist->next[i].ClientChan[x].Read++;
-						Clist->next[i].ClientChan[x].NonRead--;//Increment and Decrement read and non read values
+						Clist->next[i].ClientChan[x].Read+=1;
+						Clist->next[i].ClientChan[x].NonRead-=1;//Increment and Decrement read and non read values
 						}
 
-					if ((numbytes=recv(socket, &temp, sizeof(ClientID), 0)) == -1) {
-						perror("recv");
-						continue;
-					}
-					else if(numbytes > 0){
-						if(strstr(temp.Message,"STOP")!=NULL){
+					Release();
+					numbytes=recv(socket, &temp, sizeof(ClientID), 0);
+					if(numbytes > 0){
+						if(temp.mode == BREAK){
 							return;//If client has exit then stop loop.
 						}
+						else if(temp.mode == STOP){
+							continue;//continue the loop
+						}
+						
 					}
 				}	
 			}
@@ -702,10 +716,9 @@ void SEND(ClientID ID, int socket)
 			
 			for(int i = 0; i < Clist->tail; i++){
 				if(Clist->next[i].ID == channel){
-					
 					int c = Clist->next[i].TotalMsg;
 					if(Clist->next[i].Msg[c].truth == 0){// Create head of message if it never existed
-					sem_wait(empty);
+						sem_wait(empty);
 						strcpy(Clist->next[i].Msg[c].Msg,message);
 						Clist->next[i].Msg[c].truth = 1;//Mark as checked
 						Clist->next[i].Msg[c+1].truth = 0;//Mark as null for next message.
@@ -744,6 +757,7 @@ void InitializeMemory()
 	int shmid = shmget(IPC_PRIVATE, sizeof(ChannelList), IPC_CREAT | 0666);// setup shared memory
 	Clist = shmat(shmid, 0, 0);
 	Clist->tail = 0;
+	Clist->readCount = 0;
 	for(int i = 0; i < 255; i++){// Initialize all structs
 		Clist->next[i].ID = 256;
 		for(int x = 0; x < MAXUSER; x++){
@@ -796,4 +810,23 @@ void SocketInitialize(int argc, char *argv[],struct sockaddr_in my_addr)
 		perror("listen");
 		exit(1);
 	}
+}
+/* This is the reader semaphore hold function */
+void Hold()
+{
+	sem_wait(full);
+	Clist->readCount+=1;
+	if(Clist->readCount == 1)
+		sem_wait(empty);
+	sem_post(full);
+}
+
+/*This function releases the semaphore after the process has read the data */
+void Release()
+{
+	sem_wait(full);
+	Clist->readCount-=1;
+	if(Clist->readCount==0)
+		sem_post(empty);
+	sem_post(full);
 }

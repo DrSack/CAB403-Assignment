@@ -72,46 +72,46 @@ void ConnectAndAssign(socklen_t sin_size, int new_fd, int sockfd)
 			continue;
 		}
 		else{
-			ClientID fail; pid_t natural; int truth = 0;
-					for(int i = 0; i < 5; i++){
-						if(totalusers[i].ID==0){
-							truth = 1;
-						break;
-						}
-					}
-				
-				//Client Function..
-				if(truth == 1){
-					natural = fork();
-					if(natural == 0){// child process runs the background
-						RunClient(new_fd);
-					}
-					else {//Main process adds the user to the queue.
-						if(sigbool == 0){
-							signal(SIGCHLD, handler);
-							signal(SIGINT, close_server);
-							sigbool = 1;
-						}	
-						for(int i = 0; i < 5; i++){//Add new client to queue
-						if(totalusers[i].ID==0){
-							totalusers[i].ID=i+1;
-							totalusers[i].PID = natural;
-							totalusers[i].socket = new_fd;
-							strcpy(totalusers[i].Message, "Welcome! Your client ID is");
-							printf("Client: %d has connected\n",i+1);
-							if (send(new_fd, &totalusers[i], sizeof(ClientID), 0) == -1)
-								perror("send");
-							break;
-							}
-						}
-					}
+	ClientID fail; pid_t natural; int truth = 0;
+			for(int i = 0; i < 5; i++){
+				if(totalusers[i].ID==0){
+					truth = 1;
+				break;
 				}
-				else{// If no free spot is avilable then send bad news.
-					fail.ID = 0;
-					fail.mode = SHUTDOWN;
-					if(send(new_fd, &fail, sizeof(ClientID), 0) == -1)
+			}
+		
+		//Client Function..
+		if(truth == 1){
+			natural = fork();
+			if(natural == 0){// child process runs the background
+				RunClient(new_fd);
+			}
+			else {//Main process adds the user to the queue.
+				if(sigbool == 0){
+					signal(SIGCHLD, handler);
+					signal(SIGINT, close_server);
+					sigbool = 1;
+				}	
+				for(int i = 0; i < 5; i++){//Add new client to queue
+				if(totalusers[i].ID==0){
+					totalusers[i].ID=i+1;
+					totalusers[i].PID = natural;
+					totalusers[i].socket = new_fd;
+					strcpy(totalusers[i].Message, "Welcome! Your client ID is");
+					printf("Client: %d has connected\n",i+1);
+					if (send(new_fd, &totalusers[i], sizeof(ClientID), 0) == -1)
 						perror("send");
+					break;
+					}
 				}
+			}
+		}
+		else{// If no free spot is avilable then send bad news.
+			fail.ID = 0;
+			fail.mode = SHUTDOWN;
+			if(send(new_fd, &fail, sizeof(ClientID), 0) == -1)
+				perror("send");
+		}
 		}
 	}
 }

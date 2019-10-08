@@ -1,6 +1,6 @@
-#include "Commands.h"
+#include "Commands.h"// Include headers.
 
-#define BACKLOG 10 
+#define BACKLOG 10 //Define constants
 #define MAXUSER 5
 #define CNULL 256
 /*------------------------INITIALIZE VARIABLES ---------------- */

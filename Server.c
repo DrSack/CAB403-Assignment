@@ -28,32 +28,8 @@ void SEND();
 void ConfirmedChannel();
 void Hold();
 void Release();
-
-void close_server()//Close down the server if SIGINT is called
-{
-	printf("\nServer Closing...\n");
-	sem_destroy(empty);
-	sem_destroy(full);
-	
-	CLOSESOCKET(totalusers);
-	close(sockfd);
-	shutdown(sockfd,SHUT_RDWR);
-	shmctl(shmid, IPC_RMID, 0);//detach shared memory
-	exit(1);
-}
-
-void handler()// This is called when a child process ends.
-{
-	 pid_t chpid = wait(NULL);//obtain child ID.
-
-	for(int i = 0; i < 5; i++){
-		if(totalusers[i].PID==chpid){// deslist the user from the queue.
-			totalusers[i].PID = 0;
-			totalusers[i].ID = 0;
-			break;
-		}
-	}
-}
+void close_server();
+void handler();
 
 int main(int argc, char *argv[])
 {
@@ -732,6 +708,7 @@ void InitializeMemory()
 	Clist = shmat(shmid, 0, 0);
 	Clist->tail = 0;
 	Clist->readCount = 0;
+	
 	for(int i = 0; i < 255; i++){// Initialize all structs
 		Clist->next[i].ID = 256;
 		for(int x = 0; x < MAXUSER; x++){
@@ -803,4 +780,30 @@ void Release()
 	if(Clist->readCount==0)
 		sem_post(empty);
 	sem_post(full);
+}
+
+void close_server()//Close down the server if SIGINT is called
+{
+	printf("\nServer Closing...\n");
+	sem_destroy(empty);
+	sem_destroy(full);
+	
+	CLOSESOCKET(totalusers);
+	close(sockfd);
+	shutdown(sockfd,SHUT_RDWR);
+	shmctl(shmid, IPC_RMID, 0);//detach shared memory
+	exit(1);
+}
+
+void handler()// This is called when a child process ends.
+{
+	 pid_t chpid = wait(NULL);//obtain child ID.
+
+	for(int i = 0; i < 5; i++){
+		if(totalusers[i].PID==chpid){// deslist the user from the queue.
+			totalusers[i].PID = 0;
+			totalusers[i].ID = 0;
+			break;
+		}
+	}
 }

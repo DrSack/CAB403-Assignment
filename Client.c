@@ -5,6 +5,7 @@ int livefeed = 0;
 int manualdestroy = 0;
 int mainbool= 1;
 char buf[1024];
+pthread_t thread;
 ClientID ID;
 
 void ConnectToServer(char* argv[]);
@@ -13,7 +14,6 @@ void close_client();
 void close_livefeed();
 void close_livefeedALL();
 void MainRun();
-
 
 int main(int argc, char *argv[])
 {

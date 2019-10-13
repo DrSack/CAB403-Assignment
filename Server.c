@@ -230,7 +230,7 @@ void SUB(ClientID ID, int socket)
 			ConfirmedChannel(ptr,str,ID,channel,socket,"Subscribed to channel: ");
 			return;
 		}
-		for(int i = 0; i < 255; i++)// Search through all channels
+		for(int i = 0; i < 256; i++)// Search through all channels
 		{					
 			if(Clist->next[i].ID == channel){//IF a channel is found with the same parameter
 				for(int x = 0; x < MAXUSER; x++){
@@ -393,7 +393,7 @@ void NEXT(ClientID ID, int socket)
 		Hold();
 		bubbleSort(Clist);
 		int Subbed = 0;
-		for(int i = 0; i < 255; i++){
+		for(int i = 0; i < 256; i++){
 		for(int x = 0; x < MAXUSER; x++){
 			if(Clist->next[i].ClientChan[x].Client.ID == ID.ID){
 				int read = Clist->next[i].ClientChan[x].Read;
@@ -434,7 +434,7 @@ void NEXT(ClientID ID, int socket)
 		return;
 		}
 
-		for(int i = 0; i < 255; i++){	
+		for(int i = 0; i < 256; i++){	
 			for(int x = 0; x < MAXUSER; x++){
 			if(Clist->next[i].ClientChan[x].Client.ID == ID.ID && Clist->next[i].ID == channel){
 				Hold();
@@ -712,7 +712,7 @@ void InitializeMemory()
 	Clist->tail = 0;
 	Clist->readCount = 0;
 
-	for(int i = 0; i < 255; i++){// Initialize all structs
+	for(int i = 0; i < 256; i++){// Initialize all structs
 		Clist->next[i].ID = 256;
 		for(int x = 0; x < MAXUSER; x++){
 			Clist->next[i].ClientChan[x].Client.ID = 0;

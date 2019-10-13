@@ -58,7 +58,7 @@ typedef struct Channel_t {
 }Channel;
 
 typedef struct ChannelList_t {
-   struct Channel_t next[255];
+   struct Channel_t next[256];
    int tail;
    int readCount;
 }ChannelList;

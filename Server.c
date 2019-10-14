@@ -661,6 +661,9 @@ void SEND(ClientID ID, int socket)
 	/*Place message within the channel if it exists */
 	for(int i = 0; i < Clist->tail; i++){
 		if(Clist->next[i].ID == channel){
+			if(Clist->next[i].TotalMsg == 1000){
+				RelayBackMsg(ID,"FULL MESSAGES", socket); return;
+			}
 			int c = Clist->next[i].TotalMsg;
 			if(Clist->next[i].Msg[c].truth == 0){//IF the current message doesnt exist
 				sem_wait(empty);

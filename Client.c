@@ -11,9 +11,11 @@ ClientID ID;
 /*---------------------- DECLARE FUNCTIONS ---------------- */
 void ConnectToServer(char* argv[]);
 void AddedToServerCheck();
+void *myThreadFun();
 void close_client();
-void close_livefeed();
 void close_livefeedALL();
+void Display();
+void Livefeed();
 void MainRun();
 
 /*---------------------- MAIN FUNCTION ------------------- */
@@ -89,7 +91,9 @@ void MainRun(){
 while(mainbool == 1){
 		char to_send[sizeof(ClientID)];//Set buffer size to send.
 		int chunck, c; ID.mode = OFF;
+
 		printf("Command:");
+
 		fgets(buf, 1024, stdin);
 		if(buf[0] == '\n'){//If first element is newline
 			strcpy(buf," ");//Set to nothing.
@@ -103,7 +107,13 @@ while(mainbool == 1){
 				strcpy(ID.Message,"");//replace ID.message with nothing.
 				ssendClientID(sockfd, ID);
 			}
-		}	
+		}
+
+		if(strstr(ID.Message,"NEXT")!=NULL){
+			pthread_create(&thread, NULL, myThreadFun, (void *)1);// Create thread
+			pthread_join(thread,NULL);
+			continue;
+		}
 
 		if(strcmp("BYE",ID.Message) == 0){//Break out of the loop if user inputs BYE.
 			printf("Ending session..\n");
@@ -120,32 +130,114 @@ while(mainbool == 1){
 				break;
 			}
 
-		/*---------Displays function ----------- 
-		Whenever the server sends a continous stream of messages with a final break.
-		This function handles that server functionality.
-		*/
-		
-		else if(numbytes > 0){
+		else if(numbytes > 0){// if client recieved a message.
 			if(strcmp("Display",ID.Message) == 0){
-				while(1)
-				{
-					numbytes=recv(sockfd, &ID, sizeof(ClientID), 0);
-					if(numbytes > 0){
-						if(ID.mode != PASS){
-							printf("%s\n",ID.Message);
-						}
-						else{
-							break;
-						}	
-					}
-				}
+				Display();//If channels is picked.
 			}
-			
-			/*---------Livefeed function ----------- 
-			allows users to have a live read of all subscribed channels.
-			*/
 			else if(strcmp("LivefeedALL",ID.Message) == 0){
-				signal(SIGINT, close_livefeedALL);
+				Livefeed();//IF livefeed command is picked.
+			}
+			else if(ID.mode == OFF){
+				printf("%s",ID.Message);//print any valid messages
+			}		
+			else if(ID.mode != OFF){// If the message is invalid then loop.
+				continue;
+			}
+			printf("\n\n");//Add space and reset buffer.
+			fflush(stdin);
+			memset(buf,0,sizeof(buf));
+			break;
+		}
+
+		else{
+			printf("Server has disconnected\n");// If the loop is broken shutdown
+			close(sockfd);
+			shutdown(sockfd,SHUT_RDWR);
+			mainbool = 0;
+			break;
+		}
+
+		}	
+	}
+
+close(sockfd);
+shutdown(sockfd,SHUT_RDWR);//Shutdown if loop is broken
+exit(1);
+}
+
+/*----- Pthread Function for NEXT command ----- */
+void *myThreadFun(void *t) 
+{
+	while(1){// in while loop to catch invalid response
+	numbytes=recv(sockfd, &ID, sizeof(ClientID), 0);
+		if(strcmp("Display",ID.Message) == 0){
+		Display();
+		}
+		else if(ID.mode!= OFF){
+			continue;//eat up invalid response
+		}
+		else{
+			if(strcmp("",ID.Message) == 0){
+				printf("%s",ID.Message);
+			}
+			else{
+				printf("%s\n\n",ID.Message);
+			}
+		} 
+		pthread_exit((void*) t);  
+	}
+	             
+} 
+
+/*----- Closes the client using SIGINT ----- */
+void close_client()
+{
+	printf("\nClient Closing...\n");
+	RelayBackMsg(ID,"BYE",sockfd);
+	close(sockfd);
+	shutdown(sockfd,SHUT_RDWR);
+	exit(1);
+}
+
+/*------- Closes the livefeed function using SIGINT ----- */
+void close_livefeedALL()
+{
+	printf("\nClient Livefeed closed...\n");
+	ID.mode = BREAK;
+	RelayBackMsg(ID," ",sockfd);
+	manualdestroy = 1;
+	livefeed = 1;
+	numbytes = 100;
+}
+
+/*----------------------Display function ----------------------- 
+if a steam of messages will be sent at once, 
+this function will handle that server functionality.
+*/
+
+void Display()
+{
+	while(1)
+	{
+		numbytes=recv(sockfd, &ID, sizeof(ClientID), 0);
+		if(numbytes > 0){
+			if(ID.mode != PASS){
+				printf("%s\n",ID.Message);
+			}
+			else{
+				break;
+			}	
+		}
+	}
+}
+
+/*----------------------Livefeed function ----------------------- 
+allows users to have a live read of all subscribed channels.
+*/
+
+void Livefeed()
+{
+	signal(SIGINT, close_livefeedALL);
 				manualdestroy = 0;
 				while(livefeed == 0)
 				{
@@ -176,59 +268,7 @@ while(mainbool == 1){
 				manualdestroy = 0;
 				signal(SIGINT, close_client);
 				signal(SIGHUP, close_client);
-			}
-
-			else if(ID.mode == OFF){
-				printf("%s",ID.Message);//print any valid messages
-			}	
-				
-			else if(ID.mode != OFF){// If the message is invalid then loop.
-				continue;
-			}
-
-			printf("\n\n");//Add space and reset buffer.
-			fflush(stdin);
-			memset(buf,0,sizeof(buf));
-			break;
-		}
-
-		else{
-			printf("Server has disconnected\n");// If the loop is broken shutdown
-			close(sockfd);
-			shutdown(sockfd,SHUT_RDWR);
-			mainbool = 0;
-			break;
-		}
-
-		}	
-	}
-
-close(sockfd);
-shutdown(sockfd,SHUT_RDWR);//Shutdown if loop is broken
-exit(1);
 }
-
-/*----- Closes the client using SIGINT ----- */
-void close_client()
-{
-	printf("\nClient Closing...\n");
-	RelayBackMsg(ID,"BYE",sockfd);
-	close(sockfd);
-	shutdown(sockfd,SHUT_RDWR);
-	exit(1);
-}
-
-/*------- Closes the livefeed function using SIGINT ----- */
-void close_livefeedALL()
-{
-	printf("\nClient Livefeed closed...\n");
-	ID.mode = BREAK;
-	RelayBackMsg(ID," ",sockfd);
-	manualdestroy = 1;
-	livefeed = 1;
-	numbytes = 100;
-}
-
 
 /*----- Check if the server is full ----- */
 void AddedToServerCheck()

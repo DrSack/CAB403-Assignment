@@ -137,10 +137,13 @@ void RunClient(int new_fd){// Main client function run by child process
 				perror("recv");
         	}
 			if (numbytes > 0){
-				if(strcmp(temp.Message,"NULL")!=0){
-					printf("From Client %d: %s\n",temp.ID,temp.Message);
+				printf("From Client %d: %s\n",temp.ID,temp.Message);
+				
+				if(strstr(temp.Message,"SEND")!=NULL){
+					SEND(temp,new_fd);
+					break;
 				}
-				if(strstr(temp.Message,"UNSUB")!=NULL){
+				else if(strstr(temp.Message,"UNSUB")!=NULL){
 					UNSUB(temp,new_fd);
 					break;
 				}
@@ -158,10 +161,6 @@ void RunClient(int new_fd){// Main client function run by child process
 				}
 				else if(strstr(temp.Message,"LIVEFEED")!=NULL){
 					LIVEFEED(temp, new_fd);
-					break;
-				}
-				else if(strstr(temp.Message,"SEND")!=NULL){
-					SEND(temp,new_fd);
 					break;
 				}
 				else if(strcmp(temp.Message,"BYE")==0){
@@ -274,8 +273,8 @@ void SUB(ClientID ID, int socket)
  */
 
 void CHANNELS(ClientID temp, int socket){// Sort and List out the current Subscribed Channels
-	Hold();
 	RelayBackMsg(temp,"Display",socket);
+	Hold();
 	bubbleSort(Clist);
 	for(int i = 0; i < Clist->tail; i++){
 		for(int x = 0; x < MAXUSER; x++){//Check if the Client has an subscribed channels
@@ -429,6 +428,7 @@ void NEXT(ClientID ID, int socket)
 			InvalidChannel(ptr,str,ID,channel,socket);
 			return;
 		}
+
 		if(Clist->next[0].ID == 256){//if head is null
 		ConfirmedChannel(ptr,str,ID,channel,socket,"Not subscribed to channel: ");
 		return;
@@ -448,7 +448,7 @@ void NEXT(ClientID ID, int socket)
 					return;
 				}
 				Release();
-				RelayBackMsg(ID,"\n",socket);
+				RelayBackMsg(ID,"",socket);
 				return;
 			}
 			}
@@ -708,6 +708,12 @@ void InitializeMemory()
  	}
 
 	shmid = shmget(IPC_PRIVATE, sizeof(ChannelList), IPC_CREAT | 0666);// setup shared memory
+
+	if(shmid<0){
+    	perror("Shared memory has not been created yet");
+    	exit(1);
+	}
+
 	Clist = shmat(shmid, 0, 0);
 	Clist->tail = 0;
 	Clist->readCount = 0;
@@ -788,8 +794,11 @@ void Release()
 void close_server()//Close down the server if SIGINT is called
 {
 	printf("\nServer Closing...\n");
+	
 	sem_destroy(empty);
 	sem_destroy(full);
+	sem_unlink("this is the semaphore2");
+	sem_unlink("this is the semaphore");
 	
 	CLOSESOCKET(totalusers);
 	close(sockfd);
